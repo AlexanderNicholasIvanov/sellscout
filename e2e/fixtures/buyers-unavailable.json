@@ -53,5 +53,6 @@
       }
     ]
   },
+  "ebay": { "status": "disabled", "term": "mechanical keyboard", "listings": [], "searchUrl": "https://www.ebay.com/sch/i.html?_nkw=mechanical%20keyboard" },
   "notices": []
 }

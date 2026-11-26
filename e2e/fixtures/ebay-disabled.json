@@ -1,0 +1,45 @@
+{
+  "plan": {
+    "source": "catalog",
+    "categories": [
+      {
+        "id": "keyboards",
+        "name": "Mechanical keyboards"
+      }
+    ],
+    "searchTerm": "mechanical keyboard"
+  },
+  "venues": [
+    {
+      "id": "ebay",
+      "name": "eBay",
+      "kind": "marketplace",
+      "url": "https://www.ebay.com/sl/sell",
+      "searchUrl": "https://www.ebay.com/sch/i.html?_nkw=mechanical%20keyboard",
+      "ships": true,
+      "local": false,
+      "feeNote": "About 13.6% final value fee for most categories.",
+      "tips": [
+        "Use the item's exact model name in the title"
+      ],
+      "why": [
+        "Sells almost anything"
+      ],
+      "categoryIds": []
+    }
+  ],
+  "buyers": {
+    "status": "disabled",
+    "term": "mechanical keyboard",
+    "windowDays": 30,
+    "posts": [],
+    "links": []
+  },
+  "ebay": {
+    "status": "disabled",
+    "term": "mechanical keyboard",
+    "listings": [],
+    "searchUrl": "https://www.ebay.com/sch/i.html?_nkw=mechanical%20keyboard"
+  },
+  "notices": []
+}

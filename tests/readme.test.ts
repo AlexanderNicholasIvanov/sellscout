@@ -52,3 +52,48 @@ describe('README', () => {
     },
   );
 });
+
+describe('README (run 3, AC15)', () => {
+  const section = (name: string) => readme.split(/^## /m).find((s) => s.startsWith(`${name}\n`) || s.startsWith(`${name}\r\n`));
+
+  it('has an "eBay" section right after "Reddit"', () => {
+    expect(headings).toContain('eBay');
+    expect(headings.indexOf('eBay')).toBe(headings.indexOf('Reddit') + 1);
+  });
+
+  it.each(['EBAY_CLIENT_ID', 'EBAY_CLIENT_SECRET', 'Marketplace Account Deletion', 'I do not persist eBay data'])(
+    'the eBay section mentions %s',
+    (phrase) => {
+      expect(section('eBay')).toContain(phrase);
+    },
+  );
+
+  it('says eBay receives the search term only, and prices are asking prices', () => {
+    const ebay = section('eBay') ?? '';
+    expect(ebay.toLowerCase()).toContain('the search term only');
+    expect(ebay).toContain('not sold');
+    expect(ebay).toContain('5,000');
+  });
+
+  it('keeps eBay in the Privacy section', () => {
+    const privacy = section('Privacy') ?? '';
+    expect(privacy).toContain('eBay receives the');
+    expect(privacy).toMatch(/search term only/);
+    expect(privacy).toContain('eBay keys');
+  });
+
+  it('lists the eBay fixture terms under Fixture mode', () => {
+    const fixtureMode = readme.split(/^#{2,3} /m).find((s) => s.startsWith('Fixture mode')) ?? '';
+    for (const term of ['ebay-401', 'ebay-429', 'ebay-timeout', 'eBay: fixture']) expect(fixtureMode).toContain(term);
+  });
+
+  it('describes the eBay section under Using it', () => {
+    const using = readme.split(/^#{2,3} /m).find((s) => s.startsWith('Using it')) ?? '';
+    expect(using).toContain('**Similar listings on eBay**');
+    expect(using).toContain('**Search eBay yourself**');
+  });
+
+  it('marks 3 done on the Roadmap', () => {
+    expect(section('Roadmap')).toMatch(/3\. \*\*Similar listings on eBay\.\*\*[^]*?\(done/);
+  });
+});

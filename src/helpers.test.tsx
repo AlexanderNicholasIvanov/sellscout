@@ -101,9 +101,16 @@ describe('buyer format helpers (AC23)', () => {
   });
 
   it('picks the header chips from the status', () => {
-    expect(statusChips({ redditAuth: true, fixtures: false })).toEqual(['Reddit: on']);
-    expect(statusChips({ redditAuth: false, fixtures: false })).toEqual(['Reddit: off (no keys)']);
-    expect(statusChips({ redditAuth: false, fixtures: true })).toEqual(['Reddit: fixture', 'Fixture data']);
+    expect(statusChips({ redditAuth: true, fixtures: false, ebay: false })).toEqual(['Reddit: on', 'eBay: off (no keys)']);
+    expect(statusChips({ redditAuth: false, fixtures: false, ebay: false })).toEqual([
+      'Reddit: off (no keys)',
+      'eBay: off (no keys)',
+    ]);
+    expect(statusChips({ redditAuth: false, fixtures: true, ebay: false })).toEqual([
+      'Reddit: fixture',
+      'eBay: fixture',
+      'Fixture data',
+    ]);
   });
 });
 
@@ -197,11 +204,12 @@ describe('api', () => {
 
     const plan = { source: 'catalog', categories: [], searchTerm: 'tv' };
     const buyers = { status: 'disabled', term: 'tv', windowDays: 30, posts: [], links: [] };
+    const ebay = { status: 'disabled', term: 'tv', listings: [], searchUrl: 'https://www.ebay.com/sch/i.html?_nkw=tv' };
     const respond = (body: unknown) =>
       vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })));
 
-    respond({ plan, venues: [], buyers, notices: [] });
-    await expect(search({ item: 'tv', delivery: 'both', window: 30 })).resolves.toMatchObject({ buyers });
+    respond({ plan, venues: [], buyers, ebay, notices: [] });
+    await expect(search({ item: 'tv', delivery: 'both', window: 30 })).resolves.toMatchObject({ buyers, ebay });
 
     for (const bad of [
       undefined,
@@ -212,7 +220,7 @@ describe('api', () => {
       { ...buyers, term: null },
       { ...buyers, windowDays: '30' },
     ]) {
-      respond({ plan, venues: [], buyers: bad, notices: [] });
+      respond({ plan, venues: [], buyers: bad, ebay, notices: [] });
       await expect(search({ item: 'tv', delivery: 'both', window: 30 })).rejects.toThrow('Unexpected response');
     }
   });
@@ -232,7 +240,8 @@ describe('api', () => {
     };
     const link = { label: 'Search Reddit for buyers', url: 'https://www.reddit.com/search/?q=tv' };
     const buyers = { status: 'ok', term: 'tv', windowDays: 30, posts: [post], links: [link] };
-    const body = (b: unknown) => ({ plan, venues: [], buyers: b, notices: [] });
+    const ebay = { status: 'disabled', term: 'tv', listings: [], searchUrl: 'https://www.ebay.com/sch/i.html?_nkw=tv' };
+    const body = (b: unknown) => ({ plan, venues: [], buyers: b, ebay, notices: [] });
 
     it('accepts a well-formed result in every status', () => {
       expect(isSearchResult(body(buyers))).toBe(true);
@@ -278,7 +287,7 @@ describe('api', () => {
   });
 
   it('status() returns the validated status, or null on any failure', async () => {
-    const ok = { version: '0.1.0', redditAuth: false, fixtures: true };
+    const ok = { version: '0.1.0', redditAuth: false, fixtures: true, ebay: false };
     const fetchMock = vi.fn(async () => new Response(JSON.stringify(ok), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     await expect(status()).resolves.toEqual(ok);
@@ -295,6 +304,12 @@ describe('api', () => {
       vi.fn(async () => new Response(JSON.stringify({ ...ok, redditAuth: 'yes' }), { status: 200 })),
     );
     await expect(status()).resolves.toBeNull();
+
+    // ebay must be a boolean too.
+    for (const ebay of [undefined, 'false', 0, null]) {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ...ok, ebay }), { status: 200 })));
+      await expect(status()).resolves.toBeNull();
+    }
 
     vi.stubGlobal(
       'fetch',

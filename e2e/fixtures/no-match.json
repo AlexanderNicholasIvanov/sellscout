@@ -28,5 +28,6 @@
     }
   ],
   "buyers": { "status": "disabled", "term": "asdfgh", "windowDays": 30, "posts": [], "links": [] },
+  "ebay": { "status": "disabled", "term": "asdfgh", "listings": [], "searchUrl": "https://www.ebay.com/sch/i.html?_nkw=asdfgh" },
   "notices": ["No specialist boards matched \"asdfgh\". Try more specific words (brand, model, type)."]
 }
