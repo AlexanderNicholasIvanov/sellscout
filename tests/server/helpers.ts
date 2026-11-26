@@ -38,6 +38,7 @@ export async function listenApp(overrides: Partial<Omit<AppOptions, 'port'>> = {
     port,
     ...(overrides.status ? { status: overrides.status } : {}),
     ...(overrides.fixtures ? { fixtures: overrides.fixtures } : {}),
+    ...(overrides.settings ? { settings: overrides.settings } : {}),
   });
   return { port, calls, close: () => closeServer(server) };
 }
@@ -105,6 +106,17 @@ export function postFixtures(port: number, body: unknown, headers: Record<string
   return rawRequest(port, {
     method: 'POST',
     path: '/api/__fixtures',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(text), ...headers },
+    body: text,
+  });
+}
+
+/** PUT /api/settings with a JSON content type (and no Origin unless given). */
+export function putSettings(port: number, body: unknown, headers: Record<string, string> = {}): Promise<RawResponse> {
+  const text = typeof body === 'string' ? body : JSON.stringify(body);
+  return rawRequest(port, {
+    method: 'PUT',
+    path: '/api/settings',
     headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(text), ...headers },
     body: text,
   });

@@ -118,4 +118,14 @@ describe('.env.example (AC25)', () => {
     expect(lines[key - 2]).toBe('');
     expect(lines[model - 1]).toMatch(/^# .*claude-opus-5-5/);
   });
+
+  it('lists SELLSCOUT_SETTINGS_FILE empty under a one-line comment that gives the default (run 5 AC16)', () => {
+    const lines = readFileSync(join(repoRoot, '.env.example'), 'utf8').split(/\r?\n/);
+    const at = lines.indexOf('SELLSCOUT_SETTINGS_FILE=');
+    expect(at).toBeGreaterThan(0);
+    expect(lines[at - 1]).toMatch(/^# .*Settings.*default/);
+    expect(lines[at - 2]).toBe('');
+    // path.ts reads it from the environment it is given; .env.example documents it.
+    expect(readFileSync(join(repoRoot, 'server', 'settings', 'path.ts'), 'utf8')).toContain('env.SELLSCOUT_SETTINGS_FILE');
+  });
 });
