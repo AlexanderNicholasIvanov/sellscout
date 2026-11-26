@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readConfig } from '../../server/config.ts';
 import { installFetchGuard } from '../../server/fetch-guard.ts';
 import { FIXTURE_POSTS } from '../../server/reddit/fixtures/posts.ts';
-import { fixtureListing } from '../../server/reddit/fixtures/transport.ts';
+import type { FixturePost } from '../../server/reddit/fixtures/posts.ts';
+import { createFixtureStore } from '../../server/reddit/fixtures/store.ts';
+import { createFixtureFetch, createFixtureTransport, fixtureListing } from '../../server/reddit/fixtures/transport.ts';
 import { createBuyerSearch } from '../../server/reddit/index.ts';
 import type { BuyerQuery, BuyerSearchFn } from '../../server/reddit/index.ts';
 import type { BuyerWindow } from '../../server/types.ts';
@@ -222,5 +224,111 @@ describe('fixture mode search (AC16)', () => {
     } finally {
       restore();
     }
+  });
+});
+
+const extra = (overrides: Partial<FixturePost> = {}): FixturePost => ({
+  id: 'zx_1',
+  subreddit: 'hardwareswap',
+  title: 'WTB zorblax widget',
+  author: 'fixture_user',
+  ageHours: 1,
+  score: 1,
+  numComments: 0,
+  selftext: '',
+  ...overrides,
+});
+
+const listedIds = (body: unknown): string[] =>
+  (body as { data: { children: { data: { id: string } }[] } }).data.children.map((c) => c.data.id);
+
+describe('fixture store (AC5)', () => {
+  it('starts with the built-in posts and counts upserts and resets', () => {
+    const store = createFixtureStore();
+    expect(store.posts()).toEqual(FIXTURE_POSTS);
+    expect(store.upsert(extra())).toBe(FIXTURE_POSTS.length + 1);
+    expect(store.upsert(extra({ title: 'WTB quibbit gizmo' }))).toBe(FIXTURE_POSTS.length + 1);
+    expect(store.posts().filter((p) => p.id === 'zx_1').map((p) => p.title)).toEqual(['WTB quibbit gizmo']);
+    expect(store.reset()).toBe(FIXTURE_POSTS.length);
+    expect(store.posts()).toEqual(FIXTURE_POSTS);
+  });
+
+  it('two stores do not share added posts', () => {
+    const a = createFixtureStore();
+    const b = createFixtureStore();
+    a.upsert(extra());
+    expect(a.posts().some((p) => p.id === 'zx_1')).toBe(true);
+    expect(b.posts().some((p) => p.id === 'zx_1')).toBe(false);
+    b.upsert(extra({ id: 'zx_2' }));
+    expect(a.posts().some((p) => p.id === 'zx_2')).toBe(false);
+    a.reset();
+    expect(b.posts().some((p) => p.id === 'zx_2')).toBe(true);
+  });
+
+  it('never mutates FIXTURE_POSTS, even when a built-in id is replaced', () => {
+    const before = structuredClone(FIXTURE_POSTS);
+    const store = createFixtureStore();
+    store.upsert(extra());
+    store.upsert(extra({ id: 'fx_mk1', title: 'WTB something else' }));
+    expect(store.posts().find((p) => p.id === 'fx_mk1')?.title).toBe('WTB something else');
+    expect(FIXTURE_POSTS).toEqual(before);
+    expect(FIXTURE_POSTS.some((p) => p.id === 'zx_1')).toBe(false);
+  });
+
+  it('takes an initial set and copies it', () => {
+    const initial = [extra()];
+    const store = createFixtureStore(initial);
+    expect(store.posts()).toEqual(initial);
+    store.upsert(extra({ id: 'zx_2' }));
+    expect(initial).toHaveLength(1);
+    expect(store.reset()).toBe(1);
+  });
+});
+
+describe('fixture transport reads the store at request time (AC5)', () => {
+  it('createFixtureFetch serves a post added after it was created', async () => {
+    const store = createFixtureStore();
+    const fixtureFetch = createFixtureFetch(0, store);
+    const before = listedIds(await (await fixtureFetch('https://oauth.reddit.com/search?q=zorblax')).json());
+    expect(before).not.toContain('zx_1');
+    store.upsert(extra());
+    const after = listedIds(await (await fixtureFetch('https://oauth.reddit.com/search?q=zorblax')).json());
+    expect(after).toContain('zx_1');
+    expect(after).toHaveLength(FIXTURE_POSTS.length + 1);
+  });
+
+  it('createFixtureTransport serves the store, and without a store the built-ins only', async () => {
+    const store = createFixtureStore();
+    const transport = createFixtureTransport(0, store);
+    const plain = createFixtureTransport(0);
+    store.upsert(extra());
+    const signal = new AbortController().signal;
+    const fromStore = await transport.search('https://oauth.reddit.com/r/hardwareswap/search?q=zorblax', signal);
+    const fromPlain = await plain.search('https://oauth.reddit.com/r/hardwareswap/search?q=zorblax', signal);
+    const ids = (outcome: typeof fromStore): string[] =>
+      outcome.ok ? outcome.children.map((c) => (c as { data: { id: string } }).data.id) : ['not ok'];
+    const hardwareswap = store.posts().filter((p) => p.subreddit === 'hardwareswap').map((p) => p.id);
+    expect([...ids(fromStore)].sort()).toEqual([...hardwareswap].sort());
+    expect(ids(fromStore)).toContain('zx_1');
+    expect(ids(fromPlain)).not.toContain('zx_1');
+    expect(ids(fromPlain)).not.toContain('not ok');
+  });
+
+  it('the failure terms still apply with a store', async () => {
+    const store = createFixtureStore();
+    const fixtureFetch = createFixtureFetch(0, store);
+    expect((await fixtureFetch('https://oauth.reddit.com/search?q=reddit-403')).status).toBe(403);
+  });
+
+  it('a buyer search with fixtureStore finds a post added later; one without does not', async () => {
+    const store = createFixtureStore();
+    const fetchSpy = vi.fn<typeof globalThis.fetch>(() => Promise.reject(new Error('options.fetch must not be called')));
+    const withStore = createBuyerSearch({ config: config({ fixtures: true }), version: '1.2.3', fetch: fetchSpy, fixtureStore: store });
+    const { search: without } = fixtureSearch();
+    expect((await withStore(queryFor('zorblax widget'))).buyers.posts).toEqual([]);
+    store.upsert(extra());
+    expect((await withStore(queryFor('zorblax widget'))).buyers.posts.map((p) => p.id)).toEqual(['zx_1']);
+    expect((await without(queryFor('zorblax widget'))).buyers.posts).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

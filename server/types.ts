@@ -71,3 +71,5 @@ export type VenueSearchFn = (input: SearchInput) => VenueSearchResult;
 
 export interface StatusResponse { version: string; redditAuth: boolean; fixtures: boolean }
 export interface ErrorResponse { error: string }
+/** POST /api/__fixtures (fixture mode only): the fixture post count after the change. */
+export interface FixturesResponse { ok: true; posts: number }
