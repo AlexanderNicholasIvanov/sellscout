@@ -1,14 +1,30 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ErrorResponse, FixturesResponse, SearchFn, StatusResponse } from './types.ts';
+import type { ErrorResponse, FixturesResponse, SearchFn, SettingsResponse, SettingsUpdate, StatusResponse } from './types.ts';
 import type { FixtureStore } from './reddit/fixtures/store.ts';
 import { ClientAbortError, readBody } from './http/body.ts';
 import { parseFixtureRequest } from './http/fixtures.ts';
 import { isAllowedHost } from './http/host.ts';
+import { isAllowedOrigin } from './http/origin.ts';
+import { parseSettingsUpdate, SETTINGS_ERRORS } from './http/settings.ts';
 import { sendJson, setSecurityHeaders } from './http/respond.ts';
 import { serveStatic } from './http/static.ts';
 import { isJsonContentType, parseSearchRequest } from './http/validate.ts';
 
 export const BODY_LIMIT = 10 * 1024;
+
+export interface AppStatus { redditAuth: boolean; fixtures: boolean; ebay?: boolean; claude?: boolean }
+
+/** The outcome of a PUT /api/settings that passed validation. */
+export type SettingsSaveResult =
+  | { ok: true; settings: SettingsResponse }
+  | { ok: false; reason: 'read-only' | 'write-failed' };
+
+/** What /api/settings needs from the server (start.ts builds it). */
+export interface SettingsController {
+  get(): SettingsResponse;
+  /** Writes the merged values and reloads the config; never rejects. */
+  update(values: SettingsUpdate['values']): Promise<SettingsSaveResult>;
+}
 
 export interface AppOptions {
   search: SearchFn;
@@ -16,10 +32,12 @@ export interface AppOptions {
   /** The port the server listens on; the Host header must name it. */
   port: number;
   distDir: string;
-  /** What GET /api/status reports. Default: Reddit off, fixtures off. */
-  status?: { redditAuth: boolean; fixtures: boolean; ebay?: boolean; claude?: boolean };
+  /** What GET /api/status reports, or a getter read on every request. Default: Reddit off, fixtures off. */
+  status?: AppStatus | (() => AppStatus);
   /** Fixture mode only: enables POST /api/__fixtures on this store. Unset: that path is a 404. */
   fixtures?: FixtureStore;
+  /** Enables GET / PUT /api/settings. Unset: that path is a 404. */
+  settings?: SettingsController;
 }
 
 export type RequestHandler = (req: IncomingMessage, res: ServerResponse) => void;
@@ -70,6 +88,29 @@ export function createApp(opts: AppOptions): RequestHandler {
     sendJson(res, 200, response);
   }
 
+  async function handleSettingsPut(req: IncomingMessage, res: ServerResponse, settings: SettingsController): Promise<void> {
+    // Before the body is read: a foreign page must not get as far as the content-type check.
+    if (!isAllowedOrigin(req.headers.origin, opts.port)) {
+      sendJson(res, 403, error(SETTINGS_ERRORS.forbiddenOrigin));
+      return;
+    }
+    if (!settings.get().editable) {
+      sendJson(res, 409, error(SETTINGS_ERRORS.readOnly));
+      return;
+    }
+    const text = await readJsonBody(req, res);
+    if (text === null) return;
+    const parsed = parseSettingsUpdate(text);
+    if (!parsed.ok) {
+      sendJson(res, 400, error(parsed.error));
+      return;
+    }
+    const result = await settings.update(parsed.value);
+    if (result.ok) sendJson(res, 200, result.settings);
+    else if (result.reason === 'read-only') sendJson(res, 409, error(SETTINGS_ERRORS.readOnly));
+    else sendJson(res, 500, error(SETTINGS_ERRORS.saveFailed));
+  }
+
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (!isAllowedHost(req.headers.host, opts.port)) {
       sendJson(res, 403, error('Forbidden host'));
@@ -82,12 +123,13 @@ export function createApp(opts: AppOptions): RequestHandler {
     if (pathname === '/api' || pathname.startsWith('/api/')) {
       if (pathname === '/api/status') {
         if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+        const current = typeof opts.status === 'function' ? opts.status() : opts.status;
         const status: StatusResponse = {
           version: opts.version,
-          redditAuth: opts.status?.redditAuth === true,
-          fixtures: opts.status?.fixtures === true,
-          ebay: opts.status?.ebay === true,
-          claude: opts.status?.claude === true,
+          redditAuth: current?.redditAuth === true,
+          fixtures: current?.fixtures === true,
+          ebay: current?.ebay === true,
+          claude: current?.claude === true,
         };
         sendJson(res, 200, status);
         return;
@@ -95,6 +137,15 @@ export function createApp(opts: AppOptions): RequestHandler {
       if (pathname === '/api/search') {
         if (req.method !== 'POST') return methodNotAllowed(res, 'POST');
         await handleSearch(req, res);
+        return;
+      }
+      if (pathname === '/api/settings' && opts.settings) {
+        if (req.method === 'GET') {
+          sendJson(res, 200, opts.settings.get());
+          return;
+        }
+        if (req.method !== 'PUT') return methodNotAllowed(res, 'GET, PUT');
+        await handleSettingsPut(req, res, opts.settings);
         return;
       }
       // Exists only in fixture mode; otherwise it falls through to the 404 below.

@@ -1,11 +1,12 @@
 // sellscout API + UI server: node:http only, loopback only. `node server/main.ts` starts it.
 import { existsSync, realpathSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readConfig } from './config.ts';
 import type { AppConfig } from './config.ts';
 import { installFetchGuard } from './fetch-guard.ts';
+import { resolveSettingsFile } from './settings/path.ts';
 import { HOST, startServer } from './start.ts';
 
 // parsePort moved to config.ts; re-exported so existing imports keep working.
@@ -18,6 +19,9 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 export const DOTENV_PATH = join(repoRoot, '.env');
 
 export const FIXTURE_MODE_MESSAGE = 'sellscout: fixture mode (canned Reddit data, outbound requests blocked)';
+
+/** Printed at start when Settings can save keys (the file is not null). */
+export const settingsFileMessage = (file: string): string => `sellscout: settings file ${file}`;
 
 export interface DotEnvDeps {
   /** The real environment, before any `.env` is loaded. */
@@ -47,23 +51,35 @@ export interface PrepareDeps extends Omit<DotEnvDeps, 'env'> {
 
 /**
  * Start-up order that keeps fixture mode safe: read `SELLSCOUT_FIXTURES` from the real
- * environment, then maybe load `.env`, then read the config with fixture mode forced to the real
- * value (so `.env` cannot switch it on), then install the fetch guard in fixture mode.
+ * environment, then maybe load `.env`, then copy the environment with fixture mode forced to the
+ * real value (so `.env` cannot switch it on), then install the fetch guard in fixture mode.
+ * Returns that copy: what `readConfig` and the Settings screen read.
  */
-export function prepareConfig(deps: PrepareDeps): AppConfig {
+export function prepareEnv(deps: PrepareDeps): Record<string, string | undefined> {
   const fixtures = deps.env.SELLSCOUT_FIXTURES === '1';
   loadDotEnv(deps);
-  const config = readConfig({ ...deps.env, SELLSCOUT_FIXTURES: fixtures ? '1' : '' });
-  if (config.fixtures) {
+  const env = { ...deps.env, SELLSCOUT_FIXTURES: fixtures ? '1' : '' };
+  if (fixtures) {
     deps.installGuard();
     deps.log(FIXTURE_MODE_MESSAGE);
   }
-  return config;
+  return env;
+}
+
+/** `prepareEnv`, then the config it gives. */
+export function prepareConfig(deps: PrepareDeps): AppConfig {
+  return readConfig(prepareEnv(deps));
+}
+
+/** The settings file `npm start` uses (absolute), or null when Settings is read-only. */
+export function startSettingsFile(env: Record<string, string | undefined>): string | null {
+  const file = resolveSettingsFile(env);
+  return file === null ? null : resolve(file);
 }
 
 async function main(): Promise<void> {
   // Fixture mode comes from the real environment only: setting it in .env has no effect.
-  const config = prepareConfig({
+  const env = prepareEnv({
     env: process.env,
     exists: existsSync,
     load: (path) => process.loadEnvFile(path),
@@ -73,14 +89,18 @@ async function main(): Promise<void> {
     },
     log: (message) => console.log(message),
   });
+  const config = readConfig(env);
   const { port } = config;
   if (port === null) {
     console.error('PORT must be a number between 1 and 65535');
     process.exitCode = 1;
     return;
   }
+  // After `.env`, so SELLSCOUT_SETTINGS_FILE works there too.
+  const file = startSettingsFile(env);
+  if (file !== null) console.log(settingsFileMessage(file));
   try {
-    const server = await startServer({ port, config });
+    const server = await startServer({ port, config, settings: { file, env } });
     const { port: bound } = server.address() as AddressInfo;
     console.log(`sellscout running at http://${HOST}:${bound}`);
   } catch (err) {
