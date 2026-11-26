@@ -1,7 +1,10 @@
 // One HTTP request to Reddit with a 10 s timeout, and the reason texts (spec "Status and reasons").
 // Nothing here logs, and no reason text ever contains a URL, a header or a key.
 
-export const REQUEST_TIMEOUT_MS = 10_000;
+import { OutboundTimeoutError, REQUEST_TIMEOUT_MS, sendRequest } from '../http/outbound.ts';
+import type { HttpResponse } from '../http/outbound.ts';
+
+export { REQUEST_TIMEOUT_MS } from '../http/outbound.ts';
 
 export const REASON = {
   blocked: 'Reddit blocked the request (HTTP 403)',
@@ -27,19 +30,14 @@ export function statusReason(status: number): string {
 }
 
 /** Thrown (or raised by the fixture transport) when a request runs out of time. */
-export class RequestTimeoutError extends Error {
+export class RequestTimeoutError extends OutboundTimeoutError {
   constructor() {
     super(REASON.timeout);
     this.name = 'RequestTimeoutError';
   }
 }
 
-export interface HttpResponse {
-  status: number;
-  headers: Headers;
-  /** The parsed body; `undefined` when the body is not JSON. */
-  json: unknown;
-}
+export type { HttpResponse } from '../http/outbound.ts';
 
 export type HttpResult = { ok: true; response: HttpResponse } | { ok: false; reason: string };
 
@@ -54,39 +52,9 @@ export async function send(
   signal: AbortSignal,
   timeoutMs = REQUEST_TIMEOUT_MS,
 ): Promise<HttpResult> {
-  if (signal.aborted) return { ok: false, reason: REASON.network };
-  const controller = new AbortController();
-  const onAbort = (): void => controller.abort();
-  signal.addEventListener('abort', onAbort, { once: true });
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      controller.abort();
-      reject(new RequestTimeoutError());
-    }, timeoutMs);
-  });
-  const work = (async () => {
-    const res = await fetchFn(url, { ...init, signal: controller.signal });
-    const text = await res.text();
-    return { res, text };
-  })();
-  // When the timeout wins, the abandoned request must not become an unhandled rejection.
-  work.catch(() => undefined);
-  try {
-    const { res, text } = await Promise.race([work, timeout]);
-    let json: unknown;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      json = undefined;
-    }
-    return { ok: true, response: { status: res.status, headers: res.headers, json } };
-  } catch (err) {
-    return { ok: false, reason: err instanceof RequestTimeoutError ? REASON.timeout : REASON.network };
-  } finally {
-    clearTimeout(timer);
-    signal.removeEventListener('abort', onAbort);
-  }
+  const result = await sendRequest(fetchFn, url, init, signal, timeoutMs);
+  if (result.ok) return result;
+  return { ok: false, reason: result.failure === 'timeout' ? REASON.timeout : REASON.network };
 }
 
 /** The outcome of one search request, as the buyer search sees it. */

@@ -6,6 +6,7 @@ import { readConfig } from '../../server/config.ts';
 import { FIXTURE_POSTS } from '../../server/reddit/fixtures/posts.ts';
 import { createFixtureStore } from '../../server/reddit/fixtures/store.ts';
 import type { FixtureStore } from '../../server/reddit/fixtures/store.ts';
+import { createEbaySearch } from '../../server/ebay/index.ts';
 import { createBuyerSearch } from '../../server/reddit/index.ts';
 import { createSearchService } from '../../server/search.ts';
 import type { SearchFn, SearchResult } from '../../server/types.ts';
@@ -24,6 +25,7 @@ function fixtureSearchFn(store: FixtureStore): SearchFn {
   return createSearchService({
     venues: searchVenues,
     buyers: createBuyerSearch({ config: readConfig({ SELLSCOUT_FIXTURES: '1' }), version: '1.2.3', fetch: fetchSpy, fixtureStore: store }),
+    ebay: createEbaySearch({ config: readConfig({ SELLSCOUT_FIXTURES: '1' }), fetch: fetchSpy }),
   });
 }
 
