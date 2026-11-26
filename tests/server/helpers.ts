@@ -9,6 +9,7 @@ export const fakeResult = async (input: SearchInput): Promise<SearchResult> => (
   plan: { source: 'catalog', categories: [], searchTerm: input.item },
   venues: [],
   buyers: { status: 'disabled', term: input.item, windowDays: input.window, posts: [], links: [] },
+  ebay: { status: 'disabled', term: input.item, listings: [], searchUrl: 'https://www.ebay.com/sch/i.html?_nkw=x' },
   notices: [],
 });
 

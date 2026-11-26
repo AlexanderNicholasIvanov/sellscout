@@ -6,11 +6,13 @@ classifieds for your city. Each entry shows why it fits, its fees, posting tips 
 
 It also shows **People looking for it**: recent Reddit posts from people who want to buy the
 item ("WTB", "ISO", "looking for"), plus ready-made links to search Reddit and Craigslist
-yourself.
+yourself. **Similar listings on eBay** shows active fixed-price eBay listings for the item and
+the range of their asking prices, so you know what to ask.
 
-It runs on your own machine. Without Reddit app keys nothing leaves it: no accounts and no
-calls to other sites. With keys, Reddit receives the search term, the matched catalog subreddit names
-and a User-Agent naming sellscout (and your Reddit username, if you set one); see [Reddit](#reddit).
+It runs on your own machine. Without Reddit or eBay app keys nothing leaves it: no accounts and
+no calls to other sites. With Reddit keys, Reddit receives the search term, the matched catalog
+subreddit names and a User-Agent naming sellscout (and your Reddit username, if you set one);
+see [Reddit](#reddit). With eBay keys, eBay receives the search term only; see [eBay](#ebay).
 
 ## Setup
 
@@ -36,12 +38,14 @@ For development, `npm run dev` runs the API server with `--watch` on 5180 and th
 server on 5173, which proxies `/api` to the API. Ctrl+C stops both.
 
 `npm start` and `npm run dev` load `.env` from the repo root when it exists (copy
-`.env.example`). It holds the optional [Reddit](#reddit) keys.
+`.env.example`). It holds the optional [Reddit](#reddit) keys (`REDDIT_CLIENT_ID`,
+`REDDIT_CLIENT_SECRET`, `REDDIT_USERNAME`) and [eBay](#ebay) keys (`EBAY_CLIENT_ID`,
+`EBAY_CLIENT_SECRET`).
 
 ### Fixture mode
 
-Fixture mode serves canned Reddit posts and blocks every outbound request. It is for demos and
-the e2e tests, and needs no keys:
+Fixture mode serves canned Reddit posts and eBay listings and blocks every outbound request. It
+is for demos and the e2e tests, and needs no keys:
 
 ```sh
 SELLSCOUT_FIXTURES=1 npm start
@@ -51,11 +55,16 @@ SELLSCOUT_FIXTURES=1 SELLSCOUT_FIXTURE_DELAY_MS=1500 npm start   # slow answers
 In PowerShell: `$env:SELLSCOUT_FIXTURES=1; npm start`.
 
 - Set these variables in the shell. In `.env` they have no effect.
-- In fixture mode `.env` is not loaded, any Reddit keys are ignored and every outbound `fetch`
-  fails with "Outbound request blocked in fixture mode".
-- The header shows "Reddit: fixture" and "Fixture data".
+- In fixture mode `.env` is not loaded, any Reddit and eBay keys are ignored and every
+  outbound `fetch` fails with "Outbound request blocked in fixture mode".
+- The header shows "Reddit: fixture", "eBay: fixture" and "Fixture data".
 - Try "mechanical keyboard", "RTX 3080" or "Sony A7 III".
 - The items `reddit-403`, `reddit-429`, `reddit-html` and `reddit-timeout` show those failures.
+- eBay fixture terms: an item containing "mechanical keyboard" gets 6 eBay listings and a price
+  range ($85.00 to $142.50, median $110.00) plus the "eBay - Keyboards & Keypads" board; "desk"
+  gets 2 listings and no range; anything else gets none. Items containing `ebay-401`,
+  `ebay-403`, `ebay-429`, `ebay-500`, `ebay-timeout` or `ebay-html` (for example
+  "ebay-429 widget") show those eBay failures.
 - `SELLSCOUT_FIXTURE_DELAY_MS` (a whole number of milliseconds, default 0) delays each canned
   answer.
 - `POST /api/__fixtures` exists only in fixture mode (anywhere else it is a 404). The e2e tests
@@ -78,7 +87,21 @@ and links that open in a new tab.
 
 **People looking for it** comes next. It shows the Reddit search term and, with Reddit keys,
 the matching posts: title, subreddit, author, age, score, comments and the start of the text.
-Its **Look yourself** links work with or without keys. Header chips show whether Reddit is on.
+Its **Look yourself** links work with or without keys.
+
+**Similar listings on eBay** comes last. It shows the eBay search term (the same term Reddit
+gets) and, with eBay keys:
+- the asking-price range of the active fixed-price US-dollar listings: the 25th to the 75th
+  percentile and the median, once there are at least 3 listings. These are asking prices, not
+  sold prices;
+- up to 10 listings, each with its title (a link to the listing on eBay), its price and its
+  condition when eBay gives one. No images are loaded.
+
+With eBay keys, the listings' main eBay category is also added to **Where to post it** as
+"eBay - <category>", right after eBay (not with **Local pickup**). Without keys the section says
+how to add them. Its **Search eBay yourself** link works with or without keys.
+
+Header chips show whether Reddit and eBay are on.
 
 **Saved searches**
 - **Save search**, right after the "Understood as" line, saves the search behind the shown
@@ -111,8 +134,8 @@ to `main`. No test makes a real network call:
   `e2e/fixtures/`.
 - `e2e/live.spec.ts` uses the real server and catalog.
 - Both block every request that isn't to `127.0.0.1:5181`.
-- The Playwright server runs in [fixture mode](#fixture-mode), and the Reddit unit tests use a
-  fake `fetch`.
+- The Playwright server runs in [fixture mode](#fixture-mode), and the Reddit and eBay unit
+  tests use a fake `fetch`.
 
 ## Editing the catalog and metros
 
@@ -191,6 +214,51 @@ an issue.
 and to Craigslist's "wanted" section for your city (Craigslist's city list when no city
 matched; no Craigslist link with "Ship it"). They need no keys.
 
+## eBay
+
+**Similar listings on eBay** uses eBay's official Browse API, which needs your own free eBay
+developer keys. Without keys sellscout makes no eBay request at all. It says "Add eBay app keys
+to see similar listings and asking prices" and still gives the **Search eBay yourself** link.
+
+**Getting keys**
+1. Sign up at <https://developer.ebay.com> and create a **Production** keyset.
+2. **Marketplace Account Deletion:** eBay won't enable a production keyset until you subscribe
+   to its Marketplace Account Deletion notifications or opt out. sellscout stores no eBay user
+   data, so opt out: on the keyset's Marketplace Account Deletion page, turn on
+   **Not persisting eBay data**, confirm, pick the exemption reason that fits and submit.
+3. Put the keyset's App ID and Cert ID into `.env` in the repo root (see `.env.example`), then
+   restart sellscout:
+
+```sh
+EBAY_CLIENT_ID=<the App ID (Client ID)>
+EBAY_CLIENT_SECRET=<the Cert ID (Client Secret)>
+```
+
+The header then shows "eBay: on". sellscout uses app-only access: it never signs in as you and
+never lists or buys anything. `.env` is git-ignored: never commit it or paste keys into an
+issue.
+
+**What eBay receives:** the search term only. It is the same term Reddit gets (see
+[Reddit](#reddit)): "Sony A7 III body, low shutter count" becomes "Sony A7 III". Your location
+and delivery choice are never sent to eBay.
+
+**What is shown**
+- One search for fixed-price listings on the US marketplace. Only listings priced in US dollars
+  with an ebay.com link are kept.
+- The price range uses up to 50 listings: the 25th percentile, the median and the 75th
+  percentile, once there are at least 3. Prices are asking prices of active listings, not sold
+  prices.
+- Up to 10 listings are shown, in eBay's order.
+
+**Limits**
+- About 5,000 Browse API calls per day by default. Each search uses 1 Browse call (2 if eBay
+  asks for a fresh token mid-search). The app token comes from eBay's separate OAuth endpoint,
+  about once every 2 hours.
+- Each request gives up after 10 s, and the whole eBay search after 20 s. eBay and Reddit are
+  searched at the same time.
+- When eBay fails, the section says why (for example "eBay search unavailable: eBay rate limit
+  reached (HTTP 429)"), and the boards and buyer posts still show.
+
 ## Privacy
 
 - Everything runs locally and the server listens on 127.0.0.1 only. It rejects requests whose
@@ -199,8 +267,10 @@ matched; no Craigslist link with "Ship it"). They need no keys.
 - The buyer search term (derived from the item text) is sent to Reddit's API only when Reddit
   keys are set. Without keys nothing is sent. The location is never sent to Reddit or anywhere
   else; it only picks local boards and the Craigslist link.
-- Reddit keys stay in `.env` and in the server's memory. They are never logged or sent to the
-  browser.
+- The same search term is sent to eBay's API only when eBay keys are set. eBay receives the
+  search term only: never the location or the delivery choice.
+- Reddit and eBay keys, and the eBay access token, stay in `.env` and in the server's memory.
+  They are never logged or sent to the browser.
 - Your last location is kept only in this browser's localStorage (`sellscout.location.v1`) and
   prefilled next time. Clearing the site data removes it.
 - Saved searches (the item, location, delivery, window and the ids of the posts you have seen)
@@ -217,8 +287,8 @@ sellscout is being built in steps, each its own pull request:
 2. **People looking for it.**
    - 2a. Reddit buyer posts with your own Reddit app keys, look-yourself links, fixture mode
      and status chips (done).
-   - 2b. Saved searches, with "New" badges on posts you haven't seen yet (done, this version).
+   - 2b. Saved searches, with "New" badges on posts you haven't seen yet (done).
 3. **Similar listings on eBay.** Active listings and a typical asking-price range (optional free
-   eBay developer key).
+   eBay developer key) (done, this version).
 4. **Smarter matching with Claude.** With your own `ANTHROPIC_API_KEY`, Claude picks boards and
    search terms. Without a key, the built-in catalog still works.

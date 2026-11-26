@@ -44,6 +44,7 @@ export function config(overrides: Partial<AppConfig['reddit']> & { fixtures?: bo
     fixtures,
     fixtureDelayMs,
     reddit: { clientId: CLIENT_ID, clientSecret: SECRET, username: 'tester', ...reddit },
+    ebay: { clientId: '', clientSecret: '' },
   };
 }
 

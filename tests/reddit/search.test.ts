@@ -4,6 +4,7 @@ import { createBuyerSearch, NOTICE_DEADLINE, NOTICE_PARTIAL } from '../../server
 import type { BuyerQuery } from '../../server/reddit/index.ts';
 import { createSearchService } from '../../server/search.ts';
 import { searchVenues } from '../../server/venues/index.ts';
+import { disabledEbay } from '../ebay/helpers.ts';
 import { config, fakeFetch, hang, json, listing, noKeys, settle } from './helpers.ts';
 import type { Responder } from './helpers.ts';
 
@@ -54,7 +55,7 @@ describe('failures (AC10)', () => {
   const service = (onSearch: Responder) => {
     const fake = fakeFetch({ onSearch });
     const buyers = createBuyerSearch({ config: config(), version: '1.2.3', fetch: fake.fetch });
-    return { fake, search: createSearchService({ venues: searchVenues, buyers }) };
+    return { fake, search: createSearchService({ venues: searchVenues, buyers, ebay: disabledEbay() }) };
   };
 
   it.each([
@@ -185,7 +186,7 @@ describe('the location never leaves (AC15)', () => {
   it('no request URL, header or body contains anything from "Seattle"', async () => {
     const fake = fakeFetch({ onSearch: () => json(listing([{ id: 'p1', title: 'WTB RTX 3080' }])) });
     const buyers = createBuyerSearch({ config: config(), version: '1.2.3', fetch: fake.fetch });
-    const search = createSearchService({ venues: searchVenues, buyers });
+    const search = createSearchService({ venues: searchVenues, buyers, ebay: disabledEbay() });
     const result = await settle(search({ item: 'RTX 3080', location: 'Seattle', delivery: 'both', window: 30 }));
     expect(result.buyers.status).toBe('ok');
     // The metro was matched: it is used for the Craigslist link only.

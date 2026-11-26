@@ -24,7 +24,7 @@ describe('GET /api/status (AC5)', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('application/json; charset=utf-8');
     expect(res.headers.get('cache-control')).toBe('no-store');
-    expect(await res.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: false });
+    expect(await res.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: false, ebay: false });
   });
 
   it('accepts localhost:<port> as Host', async () => {
@@ -135,6 +135,7 @@ describe('POST /api/search happy path', () => {
       plan: { source: 'catalog', categories: [], searchTerm: 'road bike' },
       venues: [],
       buyers: { status: 'disabled', term: 'road bike', windowDays: 30, posts: [], links: [] },
+      ebay: { status: 'disabled', term: 'road bike', listings: [], searchUrl: 'https://www.ebay.com/sch/i.html?_nkw=x' },
       notices: [],
     });
     expect(app.calls).toEqual([{ item: 'road bike', location: 'Seattle', delivery: 'local', window: 30 }]);
@@ -143,9 +144,10 @@ describe('POST /api/search happy path', () => {
 
 describe('GET /api/status with injected status (run 2a AC3)', () => {
   it.each([
-    [{ redditAuth: true, fixtures: false }],
-    [{ redditAuth: false, fixtures: true }],
-    [{ redditAuth: false, fixtures: false }],
+    [{ redditAuth: true, fixtures: false, ebay: false }],
+    [{ redditAuth: false, fixtures: true, ebay: false }],
+    [{ redditAuth: false, fixtures: false, ebay: false }],
+    [{ redditAuth: false, fixtures: false, ebay: true }],
   ])('reports %j', async (status) => {
     app = await listenApp({ version: '9.9.9', status });
     const res = await rawRequest(app.port, { path: '/api/status' });
@@ -153,12 +155,13 @@ describe('GET /api/status with injected status (run 2a AC3)', () => {
     expect(json(res)).toEqual({ version: '9.9.9', ...status });
   });
 
-  it('defaults both flags to false', async () => {
+  it('defaults every flag to false', async () => {
     app = await listenApp({ version: '9.9.9' });
     expect(json(await rawRequest(app.port, { path: '/api/status' }))).toEqual({
       version: '9.9.9',
       redditAuth: false,
       fixtures: false,
+      ebay: false,
     });
   });
 });
@@ -189,12 +192,12 @@ describe('secrets never reach a response or the console (run 2a AC18)', () => {
     const { port } = server.address() as AddressInfo;
 
     const status = await rawRequest(port, { path: '/api/status' });
-    expect(json(status)).toEqual({ version: '1.2.3', redditAuth: true, fixtures: false });
+    expect(json(status)).toEqual({ version: '1.2.3', redditAuth: true, fixtures: false, ebay: false });
 
     const search = await postSearch(port, { item: 'RTX 3080', location: 'Seattle', delivery: 'both', window: 30 });
     expect(search.status).toBe(200);
     const body = json(search) as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(['buyers', 'notices', 'plan', 'venues']);
+    expect(Object.keys(body).sort()).toEqual(['buyers', 'ebay', 'notices', 'plan', 'venues']);
 
     for (const text of [status.body, search.body, logged.map(String).join('\n')]) {
       expect(text).not.toContain(SECRET);

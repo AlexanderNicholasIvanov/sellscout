@@ -17,7 +17,7 @@ export interface AppOptions {
   port: number;
   distDir: string;
   /** What GET /api/status reports. Default: Reddit off, fixtures off. */
-  status?: { redditAuth: boolean; fixtures: boolean };
+  status?: { redditAuth: boolean; fixtures: boolean; ebay?: boolean };
   /** Fixture mode only: enables POST /api/__fixtures on this store. Unset: that path is a 404. */
   fixtures?: FixtureStore;
 }
@@ -86,6 +86,7 @@ export function createApp(opts: AppOptions): RequestHandler {
           version: opts.version,
           redditAuth: opts.status?.redditAuth === true,
           fixtures: opts.status?.fixtures === true,
+          ebay: opts.status?.ebay === true,
         };
         sendJson(res, 200, status);
         return;

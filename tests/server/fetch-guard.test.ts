@@ -24,6 +24,17 @@ describe('installFetchGuard (AC16)', () => {
     await expect(globalThis.fetch('http://127.0.0.1:1/', { method: 'POST' })).rejects.toBeInstanceOf(Error);
   });
 
+  it('blocks the eBay API hosts too (run 3 AC11)', async () => {
+    restore = installFetchGuard();
+    for (const url of [
+      'https://api.ebay.com/identity/v1/oauth2/token',
+      'https://api.ebay.com/buy/browse/v1/item_summary/search?q=a',
+      'https://www.ebay.com/sch/i.html?_nkw=a',
+    ]) {
+      await expect(fetch(url, { method: 'POST' })).rejects.toThrow(`Outbound request blocked in fixture mode: ${url}`);
+    }
+  });
+
   it('returns a rejected promise rather than throwing synchronously', () => {
     restore = installFetchGuard();
     let result: Promise<Response> | undefined;

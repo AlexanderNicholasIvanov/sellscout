@@ -369,6 +369,60 @@ select {
   overflow-wrap: anywhere;
 }
 
+/* Similar listings on eBay: laid out like the buyer posts. */
+.ebay {
+  margin-top: 1.75rem;
+}
+
+.ebay-searched,
+.ebay-message,
+.ebay-range {
+  margin: 0 0 0.75rem;
+}
+
+.ebay-searched {
+  color: var(--muted);
+}
+
+.ebay-range {
+  font-weight: 600;
+}
+
+.listings {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listing {
+  padding: 0.85rem 1.1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+
+.listing p {
+  margin: 0.25rem 0 0;
+}
+
+.listing .listing-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.listing-condition {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.results .ebay-yourself {
+  margin: 1rem 0 0;
+  overflow-wrap: anywhere;
+}
+
 /* Secondary buttons: Save search, and Run / Delete in the saved searches panel. */
 .secondary {
   padding: 0.4rem 0.9rem;

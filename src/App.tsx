@@ -5,6 +5,8 @@ import type {
   BuyersResult,
   BuyerWindow,
   Delivery,
+  EbayListing,
+  EbayResult,
   SearchInput,
   SearchResult,
   Venue,
@@ -13,9 +15,13 @@ import { BUYER_WINDOWS, DEFAULT_BUYER_WINDOW, buildSearchInput, search, status }
 import {
   ageText,
   buyersSearchedText,
+  ebayNoListingsText,
+  ebaySearchedText,
   kindLabel,
+  money,
   postMetaText,
   postStatsText,
+  priceRangeText,
   safeHref,
   searchLinkText,
   statusChips,
@@ -39,6 +45,7 @@ const ITEM_MAX = 200;
 const ITEM_ERROR = "Describe what you're selling";
 
 const README_REDDIT_URL = 'https://github.com/AlexanderNicholasIvanov/sellscout#reddit';
+const README_EBAY_URL = 'https://github.com/AlexanderNicholasIvanov/sellscout#ebay';
 
 const DELIVERY_OPTIONS: { value: Delivery; label: string }[] = [
   { value: 'ship', label: 'Ship it' },
@@ -186,6 +193,70 @@ function Buyers({ buyers, nowMs, newIds }: BuyersProps) {
   );
 }
 
+function ListingRow({ listing }: { listing: EbayListing }) {
+  const href = safeHref(listing.url);
+  return (
+    <li className="listing">
+      <p className="listing-title">
+        {href ? (
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            {listing.title}
+          </a>
+        ) : (
+          listing.title
+        )}
+      </p>
+      <p className="listing-price">{money(listing.price)}</p>
+      {listing.condition !== '' ? <p className="listing-condition">{listing.condition}</p> : null}
+    </li>
+  );
+}
+
+function EbayBody({ ebay }: { ebay: EbayResult }) {
+  switch (ebay.status) {
+    case 'ok':
+      if (ebay.listings.length === 0) return <p className="ebay-message">{ebayNoListingsText(ebay.term)}</p>;
+      return (
+        <>
+          <p className="ebay-range">
+            {ebay.priceRange ? priceRangeText(ebay.priceRange) : 'Not enough listings for a price range.'}
+          </p>
+          <ol className="listings">
+            {ebay.listings.map((listing) => (
+              <ListingRow key={listing.id} listing={listing} />
+            ))}
+          </ol>
+        </>
+      );
+    case 'unavailable':
+      return <p className="ebay-message">eBay search unavailable: {ebay.reason ?? 'unknown error'}</p>;
+    case 'disabled':
+      return (
+        <p className="ebay-message">
+          Add eBay app keys to see similar listings and asking prices. See the{' '}
+          <a href={README_EBAY_URL} target="_blank" rel="noopener noreferrer">
+            README&apos;s eBay section
+          </a>
+          .
+        </p>
+      );
+  }
+}
+
+/** "Similar listings on eBay": active fixed-price listings and their asking-price range. No images. */
+function Ebay({ ebay }: { ebay: EbayResult }) {
+  return (
+    <div className="ebay">
+      <h2>Similar listings on eBay</h2>
+      <p className="ebay-searched">{ebaySearchedText(ebay.term)}</p>
+      <EbayBody ebay={ebay} />
+      <p className="ebay-yourself">
+        <ExternalLink href={ebay.searchUrl}>Search eBay yourself</ExternalLink>
+      </p>
+    </div>
+  );
+}
+
 interface SaveMessage {
   text: string;
   /** Bumped on every message so a repeated one re-mounts and is announced again. */
@@ -228,6 +299,7 @@ function Results({
         <p>No boards fit this delivery choice. Try another delivery option.</p>
       )}
       <Buyers buyers={result.buyers} nowMs={nowMs} newIds={newIds} />
+      <Ebay ebay={result.ebay} />
     </>
   );
 }

@@ -61,15 +61,34 @@ export interface BuyersResult {
   status: BuyerStatus; reason?: string;   // reason only when 'unavailable'
   term: string; windowDays: BuyerWindow; posts: BuyerPost[]; links: FallbackLink[];
 }
-export interface SearchResult { plan: SearchPlan; venues: Venue[]; buyers: BuyersResult; notices: string[] }
+export interface EbayListing {
+  id: string;            // eBay itemId
+  title: string;
+  price: number;         // USD, 2 decimals
+  condition: string;     // '' when eBay gives none
+  url: string;           // https URL on an ebay.com host
+}
+/** Asking prices of active listings, USD, rounded to cents. */
+export interface PriceRange { count: number; p25: number; median: number; p75: number }
+export type EbayStatus = 'ok' | 'unavailable' | 'disabled';
+export interface EbayResult {
+  status: EbayStatus;
+  reason?: string;            // only when 'unavailable'
+  term: string;               // the eBay search term (= buyerTerm(item))
+  listings: EbayListing[];    // at most 10
+  priceRange?: PriceRange;    // only when 'ok' and at least 3 prices
+  searchUrl: string;          // https://www.ebay.com/sch/i.html?_nkw=<term>, always set
+}
+
+export interface SearchResult { plan: SearchPlan; venues: Venue[]; buyers: BuyersResult; ebay: EbayResult; notices: string[] }
 export type SearchFn = (input: SearchInput) => Promise<SearchResult>;
 
 /** What the venue search hands the buyer search; never sent to the browser. */
 export interface BuyerContext { subreddits: string[]; craigslist?: string }
-export type VenueSearchResult = Omit<SearchResult, 'buyers'> & { context: BuyerContext };
+export type VenueSearchResult = Omit<SearchResult, 'buyers' | 'ebay'> & { context: BuyerContext };
 export type VenueSearchFn = (input: SearchInput) => VenueSearchResult;
 
-export interface StatusResponse { version: string; redditAuth: boolean; fixtures: boolean }
+export interface StatusResponse { version: string; redditAuth: boolean; fixtures: boolean; ebay: boolean }
 export interface ErrorResponse { error: string }
 /** POST /api/__fixtures (fixture mode only): the fixture post count after the change. */
 export interface FixturesResponse { ok: true; posts: number }

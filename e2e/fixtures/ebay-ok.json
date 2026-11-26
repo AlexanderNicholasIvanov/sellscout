@@ -1,0 +1,100 @@
+{
+  "plan": {
+    "source": "catalog",
+    "categories": [
+      {
+        "id": "keyboards",
+        "name": "Mechanical keyboards"
+      }
+    ],
+    "searchTerm": "mechanical keyboard"
+  },
+  "venues": [
+    {
+      "id": "ebay",
+      "name": "eBay",
+      "kind": "marketplace",
+      "url": "https://www.ebay.com/sl/sell",
+      "searchUrl": "https://www.ebay.com/sch/i.html?_nkw=mechanical%20keyboard",
+      "ships": true,
+      "local": false,
+      "feeNote": "About 13.6% final value fee for most categories.",
+      "tips": [
+        "Use the item's exact model name in the title"
+      ],
+      "why": [
+        "Sells almost anything"
+      ],
+      "categoryIds": []
+    },
+    {
+      "id": "ebay-category",
+      "name": "eBay - Keyboards & Keypads",
+      "kind": "marketplace",
+      "url": "https://www.ebay.com/sch/i.html?_nkw=mechanical%20keyboard&_sacat=33963",
+      "ships": true,
+      "local": false,
+      "tips": [],
+      "why": [
+        "eBay category for \"mechanical keyboard\""
+      ],
+      "categoryIds": []
+    }
+  ],
+  "buyers": {
+    "status": "disabled",
+    "term": "mechanical keyboard",
+    "windowDays": 30,
+    "posts": [],
+    "links": []
+  },
+  "ebay": {
+    "status": "ok",
+    "term": "mechanical keyboard",
+    "listings": [
+      {
+        "id": "v1|111111111111|0",
+        "title": "Keychron Q1 Pro mechanical keyboard, fully assembled",
+        "price": 1234.56,
+        "condition": "Pre-owned",
+        "url": "https://www.ebay.com/itm/111111111111"
+      },
+      {
+        "id": "v1|222222222222|0",
+        "title": "65% mechanical keyboard, hot-swap",
+        "price": 85,
+        "condition": "",
+        "url": "https://www.ebay.com/itm/222222222222"
+      },
+      {
+        "id": "v1|333333333333|0",
+        "title": "Mechanical keyboard (unsafe link)",
+        "price": 110,
+        "condition": "New",
+        "url": "javascript:alert(1)"
+      },
+      {
+        "id": "v1|444444444444|0",
+        "title": "Mechanical keyboard, brown switches",
+        "price": 142.5,
+        "condition": "Used",
+        "url": "https://www.ebay.com/itm/444444444444"
+      },
+      {
+        "id": "v1|555555555555|0",
+        "title": "TKL mechanical keyboard",
+        "price": 60,
+        "condition": "Open box",
+        "url": "https://www.ebay.com/itm/555555555555"
+      }
+    ],
+    "priceRange": {
+      "count": 5,
+      "p25": 85,
+      "median": 110,
+      "p75": 142.5
+    },
+    "searchUrl": "https://www.ebay.com/sch/i.html?_nkw=mechanical%20keyboard"
+  },
+  "notices": []
+}

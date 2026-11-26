@@ -7,8 +7,9 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createApp } from './app.ts';
 import type { RequestHandler } from './app.ts';
-import { hasRedditKeys, readConfig } from './config.ts';
+import { hasEbayKeys, hasRedditKeys, readConfig } from './config.ts';
 import type { AppConfig } from './config.ts';
+import { createEbaySearch } from './ebay/index.ts';
 import { installFetchGuard } from './fetch-guard.ts';
 import { createFixtureStore } from './reddit/fixtures/store.ts';
 import { createBuyerSearch } from './reddit/index.ts';
@@ -92,6 +93,8 @@ export function startServer(options: StartOptions): Promise<Server> {
   // Fixture mode: one store shared by the buyer search and POST /api/__fixtures. Off, or an
   // injected `search` that would never read it: no store, so that route 404s.
   const fixtureStore = config.fixtures && options.search === undefined ? createFixtureStore() : undefined;
+  // Late-bound so the fixture-mode fetch guard applies to every request.
+  const lateFetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init);
   const search =
     options.search ??
     createSearchService({
@@ -99,10 +102,10 @@ export function startServer(options: StartOptions): Promise<Server> {
       buyers: createBuyerSearch({
         config,
         version,
-        // Late-bound so the fixture-mode fetch guard applies to every request.
-        fetch: (input, init) => globalThis.fetch(input, init),
+        fetch: lateFetch,
         fixtureStore,
       }),
+      ebay: createEbaySearch({ config, fetch: lateFetch }),
     });
   // The app needs the bound port for its Host check, which is only known after listen (port 0).
   let app: RequestHandler | undefined;
@@ -123,7 +126,7 @@ export function startServer(options: StartOptions): Promise<Server> {
         version,
         port,
         distDir: options.distDir ?? DIST_DIR,
-        status: { redditAuth: hasRedditKeys(config), fixtures: config.fixtures },
+        status: { redditAuth: hasRedditKeys(config), fixtures: config.fixtures, ebay: hasEbayKeys(config) },
         fixtures: fixtureStore,
       });
       resolve(server);

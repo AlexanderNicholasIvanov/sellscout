@@ -5,7 +5,7 @@ import type { AddressInfo, Server as NetServer } from 'node:net';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DOTENV_PATH, FIXTURE_MODE_MESSAGE, loadDotEnv, parsePort, prepareConfig, startServer } from '../../server/main.ts';
 import { readConfig } from '../../server/config.ts';
 import { FIXTURE_POSTS } from '../../server/reddit/fixtures/posts.ts';
@@ -38,11 +38,11 @@ interface Spawned {
   exit: Promise<number | null>;
 }
 
-/** The test runner's environment without any sellscout or Reddit setting from the developer's shell. */
+/** The test runner's environment without any sellscout, Reddit or eBay setting from the developer's shell. */
 function cleanEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
   for (const name of Object.keys(env)) {
-    if (name.startsWith('SELLSCOUT_') || name.startsWith('REDDIT_')) delete env[name];
+    if (name.startsWith('SELLSCOUT_') || name.startsWith('REDDIT_') || name.startsWith('EBAY_')) delete env[name];
   }
   return env;
 }
@@ -93,7 +93,20 @@ describe('startServer (AC3)', () => {
     expect(address.port).toBeGreaterThan(0);
     const res = await rawRequest(address.port, { path: '/api/status' });
     expect(res.status).toBe(200);
-    expect(JSON.parse(res.body)).toEqual({ version: '1.2.3', redditAuth: false, fixtures: false });
+    expect(JSON.parse(res.body)).toEqual({ version: '1.2.3', redditAuth: false, fixtures: false, ebay: false });
+  });
+
+  it('reports ebay: true with eBay keys and fixtures off, and sends nothing at start-up (run 3 AC3)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const config = readConfig({ EBAY_CLIENT_ID: 'SENTINEL-EBAY-ID', EBAY_CLIENT_SECRET: 'SENTINEL-EBAY-SECRET' });
+    const server = await startServer({ port: 0, version: '1.2.3', config });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    const res = await rawRequest(port, { path: '/api/status' });
+    expect(json(res)).toEqual({ version: '1.2.3', redditAuth: false, fixtures: false, ebay: true });
+    expect(res.body).not.toContain('SENTINEL');
+    expect(fetchSpy.mock.calls.map((call) => String(call[0])).filter((url) => !url.startsWith('http://127.0.0.1'))).toEqual([]);
+    fetchSpy.mockRestore();
   });
 
   it('rejects with EADDRINUSE when the port is taken', async () => {
@@ -101,6 +114,53 @@ describe('startServer (AC3)', () => {
     cleanups.push(() => new Promise((r) => blocker.close(() => r())));
     const { port } = blocker.address() as AddressInfo;
     await expect(startServer({ port })).rejects.toMatchObject({ code: 'EADDRINUSE' });
+  });
+});
+
+describe('startServer in fixture mode: eBay (run 3 AC3, AC11)', () => {
+  it('answers "mechanical keyboard" with the agreed listings, range and category venue over HTTP', async () => {
+    const config = readConfig({ SELLSCOUT_FIXTURES: '1', EBAY_CLIENT_ID: 'SENTINEL-EBAY-ID', EBAY_CLIENT_SECRET: 'SENTINEL-EBAY-SECRET' });
+    const server = await startServer({ port: 0, version: '1.2.3', config });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    expect(json(await rawRequest(port, { path: '/api/status' }))).toEqual({ version: '1.2.3', redditAuth: false, fixtures: true, ebay: false });
+
+    const res = await postSearch(port, { item: 'mechanical keyboard', delivery: 'both', window: 30 });
+    expect(res.status).toBe(200);
+    expect(res.body).not.toContain('SENTINEL');
+    const result = json(res) as SearchResult;
+    expect(result.ebay.status).toBe('ok');
+    expect(result.ebay.term).toBe('mechanical keyboard');
+    expect(result.ebay.listings.map((l) => [l.id, l.price])).toEqual([
+      ['fx_eb1', 50],
+      ['fx_eb2', 80],
+      ['fx_eb3', 100],
+      ['fx_eb4', 120],
+      ['fx_eb5', 150],
+      ['fx_eb6', 400],
+    ]);
+    expect(result.ebay.priceRange).toEqual({ count: 6, p25: 85, median: 110, p75: 142.5 });
+    expect(result.ebay.searchUrl).toBe('https://www.ebay.com/sch/i.html?_nkw=mechanical%20keyboard');
+    const ids = result.venues.map((v) => v.id);
+    const at = ids.indexOf('ebay-category');
+    expect(at).toBe(ids.indexOf('ebay') + 1);
+    expect(result.venues[at]).toMatchObject({
+      name: 'eBay - Keyboards & Keypads',
+      url: 'https://www.ebay.com/sch/i.html?_nkw=mechanical%20keyboard&_sacat=33963',
+    });
+    // The buyers still come from the Reddit fixtures.
+    expect(result.buyers.status).toBe('ok');
+  });
+
+  it('a failure term gives its reason and the venues and buyers still show', async () => {
+    const server = await startServer({ port: 0, version: '1.2.3', config: readConfig({ SELLSCOUT_FIXTURES: '1' }) });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    const result = json(await postSearch(port, { item: 'ebay-429 widget', window: 30 })) as SearchResult;
+    expect(result.ebay).toMatchObject({ status: 'unavailable', reason: 'eBay rate limit reached (HTTP 429)', listings: [] });
+    expect(result.venues.length).toBeGreaterThan(0);
+    expect(result.venues.map((v) => v.id)).not.toContain('ebay-category');
+    expect(result.buyers.status).toBe('ok');
   });
 });
 
@@ -185,7 +245,7 @@ describe('node server/main.ts', () => {
     expect(proc.stdout().trim()).toBe(`sellscout running at http://127.0.0.1:${port}`);
     const res = await fetch(`http://127.0.0.1:${port}/api/status`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: false });
+    expect(await res.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: false, ebay: false });
   }, 20_000);
 
   it('prints the port-in-use message and exits 1 (AC4)', async () => {
@@ -204,6 +264,8 @@ describe('node server/main.ts', () => {
       SELLSCOUT_FIXTURES: '1',
       REDDIT_CLIENT_ID: 'SENTINEL-ID-456',
       REDDIT_CLIENT_SECRET: 'SENTINEL-SECRET-123',
+      EBAY_CLIENT_ID: 'SENTINEL-EBAY-ID',
+      EBAY_CLIENT_SECRET: 'SENTINEL-EBAY-SECRET',
     });
     await waitFor(() => proc.stdout().includes(`127.0.0.1:${port}`) || proc.child.exitCode !== null, 15_000);
     expect(proc.stdout().trim().split(/\r?\n/)).toEqual([
@@ -212,7 +274,7 @@ describe('node server/main.ts', () => {
     ]);
     expect(FIXTURE_MODE_MESSAGE).toBe('sellscout: fixture mode (canned Reddit data, outbound requests blocked)');
     const status = await fetch(`http://127.0.0.1:${port}/api/status`);
-    expect(await status.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: true });
+    expect(await status.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: true, ebay: false });
     const res = await fetch(`http://127.0.0.1:${port}/api/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -221,8 +283,10 @@ describe('node server/main.ts', () => {
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).not.toContain('SENTINEL');
-    const body = JSON.parse(text) as { buyers: { term: string; windowDays: number } };
+    const body = JSON.parse(text) as { buyers: { term: string; windowDays: number }; ebay: SearchResult['ebay'] };
     expect(body.buyers).toMatchObject({ term: 'mechanical keyboard', windowDays: 30 });
+    expect(body.ebay.listings.map((l) => l.id)).toEqual(['fx_eb1', 'fx_eb2', 'fx_eb3', 'fx_eb4', 'fx_eb5', 'fx_eb6']);
+    expect(body.ebay.priceRange).toEqual({ count: 6, p25: 85, median: 110, p75: 142.5 });
     expect(proc.stderr()).not.toContain('SENTINEL');
   }, 20_000);
 
@@ -292,19 +356,30 @@ describe('prepareConfig (AC16, AC17: start-up order)', () => {
   }
 
   it('installs the fetch guard and ignores keys in fixture mode', () => {
-    const { config, calls } = run({ SELLSCOUT_FIXTURES: '1', REDDIT_CLIENT_ID: 'id', REDDIT_CLIENT_SECRET: 'secret' }, {});
+    const { config, calls } = run(
+      { SELLSCOUT_FIXTURES: '1', REDDIT_CLIENT_ID: 'id', REDDIT_CLIENT_SECRET: 'secret', EBAY_CLIENT_ID: 'eid', EBAY_CLIENT_SECRET: 'esecret' },
+      {},
+    );
     expect(config.fixtures).toBe(true);
     expect(config.reddit.clientSecret).toBe('');
+    expect(config.ebay).toEqual({ clientId: '', clientSecret: '' });
     expect(calls).toEqual(['guard', `log:${FIXTURE_MODE_MESSAGE}`]);
   });
 
   it('a .env that sets SELLSCOUT_FIXTURES=1 does not turn fixture mode on, and its keys are read', () => {
     const { config, calls } = run(
       {},
-      { SELLSCOUT_FIXTURES: '1', REDDIT_CLIENT_ID: 'from-dotenv', REDDIT_CLIENT_SECRET: 'dotenv-secret' },
+      {
+        SELLSCOUT_FIXTURES: '1',
+        REDDIT_CLIENT_ID: 'from-dotenv',
+        REDDIT_CLIENT_SECRET: 'dotenv-secret',
+        EBAY_CLIENT_ID: ' ebay-from-dotenv ',
+        EBAY_CLIENT_SECRET: 'ebay-dotenv-secret',
+      },
     );
     expect(config.fixtures).toBe(false);
     expect(config.reddit.clientId).toBe('from-dotenv');
+    expect(config.ebay).toEqual({ clientId: 'ebay-from-dotenv', clientSecret: 'ebay-dotenv-secret' });
     expect(calls).toEqual(['load']);
   });
 
