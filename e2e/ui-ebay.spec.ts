@@ -244,28 +244,28 @@ test.describe('header status chips: eBay (AC12)', () => {
     await mockSearch(page, 'mechanical-keyboard');
     await mockStatus(page, { redditAuth: false, fixtures: false, ebay: true });
     await page.goto('/');
-    await expect(chips(page)).toHaveText(['Reddit: off (no keys)', 'eBay: on']);
+    await expect(chips(page)).toHaveText(['Reddit: off (no keys)', 'eBay: on', 'Claude: off (no key)']);
   });
 
   test('Reddit and eBay keys give "Reddit: on" and "eBay: on"', async ({ page }) => {
     await mockSearch(page, 'mechanical-keyboard');
     await mockStatus(page, { redditAuth: true, fixtures: false, ebay: true });
     await page.goto('/');
-    await expect(chips(page)).toHaveText(['Reddit: on', 'eBay: on']);
+    await expect(chips(page)).toHaveText(['Reddit: on', 'eBay: on', 'Claude: off (no key)']);
   });
 
   test('no eBay keys give "eBay: off (no keys)"', async ({ page }) => {
     await mockSearch(page, 'mechanical-keyboard');
     await mockStatus(page, { redditAuth: false, fixtures: false, ebay: false });
     await page.goto('/');
-    await expect(chips(page)).toHaveText(['Reddit: off (no keys)', 'eBay: off (no keys)']);
+    await expect(chips(page)).toHaveText(['Reddit: off (no keys)', 'eBay: off (no keys)', 'Claude: off (no key)']);
   });
 
   test('fixture mode gives "eBay: fixture" before "Fixture data"', async ({ page }) => {
     await mockSearch(page, 'mechanical-keyboard');
     await mockStatus(page, { redditAuth: false, fixtures: true, ebay: false });
     await page.goto('/');
-    await expect(chips(page)).toHaveText(['Reddit: fixture', 'eBay: fixture', 'Fixture data']);
+    await expect(chips(page)).toHaveText(['Reddit: fixture', 'eBay: fixture', 'Claude: fixture', 'Fixture data']);
   });
 
   for (const [label, ebay] of [

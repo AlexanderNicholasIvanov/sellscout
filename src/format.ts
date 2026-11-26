@@ -14,7 +14,8 @@ export function kindLabel(kind: VenueKind): string {
 
 export function understoodAs(plan: SearchPlan): string {
   const names = plan.categories.map((c) => c.name).filter((n) => n !== '');
-  return `Understood as: ${names.length > 0 ? names.join(', ') : 'general item'} · via built-in catalog`;
+  const via = plan.source === 'claude' ? 'Claude' : 'built-in catalog';
+  return `Understood as: ${names.length > 0 ? names.join(', ') : 'general item'} · via ${via}`;
 }
 
 export function whyText(why: string[]): string {
@@ -86,9 +87,10 @@ export function ebayNoListingsText(term: string): string {
   return `No fixed-price eBay listings found for "${term}".`;
 }
 
-/** The header chips for GET /api/status: Reddit, then eBay, then "Fixture data". */
-export function statusChips(status: { redditAuth: boolean; fixtures: boolean; ebay: boolean }): string[] {
+/** The header chips for GET /api/status: Reddit, then eBay, then Claude, then "Fixture data". */
+export function statusChips(status: { redditAuth: boolean; fixtures: boolean; ebay: boolean; claude?: boolean }): string[] {
   const reddit = status.redditAuth ? 'Reddit: on' : status.fixtures ? 'Reddit: fixture' : 'Reddit: off (no keys)';
   const ebay = status.ebay ? 'eBay: on' : status.fixtures ? 'eBay: fixture' : 'eBay: off (no keys)';
-  return status.fixtures ? [reddit, ebay, 'Fixture data'] : [reddit, ebay];
+  const claude = status.claude === true ? 'Claude: on' : status.fixtures ? 'Claude: fixture' : 'Claude: off (no key)';
+  return status.fixtures ? [reddit, ebay, claude, 'Fixture data'] : [reddit, ebay, claude];
 }

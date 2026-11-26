@@ -101,14 +101,20 @@ describe('buyer format helpers (AC23)', () => {
   });
 
   it('picks the header chips from the status', () => {
-    expect(statusChips({ redditAuth: true, fixtures: false, ebay: false })).toEqual(['Reddit: on', 'eBay: off (no keys)']);
+    expect(statusChips({ redditAuth: true, fixtures: false, ebay: false })).toEqual([
+      'Reddit: on',
+      'eBay: off (no keys)',
+      'Claude: off (no key)',
+    ]);
     expect(statusChips({ redditAuth: false, fixtures: false, ebay: false })).toEqual([
       'Reddit: off (no keys)',
       'eBay: off (no keys)',
+      'Claude: off (no key)',
     ]);
     expect(statusChips({ redditAuth: false, fixtures: true, ebay: false })).toEqual([
       'Reddit: fixture',
       'eBay: fixture',
+      'Claude: fixture',
       'Fixture data',
     ]);
   });
@@ -290,7 +296,8 @@ describe('api', () => {
     const ok = { version: '0.1.0', redditAuth: false, fixtures: true, ebay: false };
     const fetchMock = vi.fn(async () => new Response(JSON.stringify(ok), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    await expect(status()).resolves.toEqual(ok);
+    // A status without `claude` (a server older than run 4) is accepted and reads as false.
+    await expect(status()).resolves.toEqual({ ...ok, claude: false });
     expect(fetchMock).toHaveBeenCalledWith('/api/status', expect.anything());
 
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(ok), { status: 500 })));

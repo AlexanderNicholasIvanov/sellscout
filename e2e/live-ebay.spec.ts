@@ -127,6 +127,6 @@ test.describe('live eBay', () => {
   }
 
   test('the fixture-mode server shows "eBay: fixture" between Reddit and "Fixture data"', async ({ page }) => {
-    await expect(page.locator('header .chip')).toHaveText(['Reddit: fixture', 'eBay: fixture', 'Fixture data']);
+    await expect(page.locator('header .chip')).toHaveText(['Reddit: fixture', 'eBay: fixture', 'Claude: fixture', 'Fixture data']);
   });
 });

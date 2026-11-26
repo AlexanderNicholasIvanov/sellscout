@@ -87,6 +87,7 @@ function VenueRow({ venue, searchTerm }: { venue: Venue; searchTerm: string }) {
       <div className="venue-head">
         <h3 className="venue-name">{venue.name}</h3>
         <span className={`badge badge-${venue.kind}`}>{kindLabel(venue.kind)}</span>
+        {venue.aiSuggested === true ? <span className="badge badge-ai">AI suggested</span> : null}
       </div>
       <p className="venue-why">{whyText(venue.why)}</p>
       {venue.feeNote ? <p className="venue-fee">{venue.feeNote}</p> : null}
@@ -102,7 +103,8 @@ function VenueRow({ venue, searchTerm }: { venue: Venue; searchTerm: string }) {
       ) : null}
       <p className="venue-links">
         <ExternalLink href={venue.url}>Open board</ExternalLink>
-        {venue.searchUrl ? (
+        {/* An AI-suggested subreddit is never searched: it gets the board link only. */}
+        {venue.searchUrl && venue.aiSuggested !== true ? (
           <ExternalLink href={venue.searchUrl}>{searchLinkText(searchTerm)}</ExternalLink>
         ) : null}
       </p>

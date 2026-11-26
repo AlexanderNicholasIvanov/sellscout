@@ -121,6 +121,6 @@ test.describe('live buyers @needs-reddit-source', () => {
   });
 
   test('AC22: the fixture-mode server shows "Reddit: fixture" and "Fixture data"', async ({ page }) => {
-    await expect(page.locator('header .chip')).toHaveText(['Reddit: fixture', 'eBay: fixture', 'Fixture data']);
+    await expect(page.locator('header .chip')).toHaveText(['Reddit: fixture', 'eBay: fixture', 'Claude: fixture', 'Fixture data']);
   });
 });
