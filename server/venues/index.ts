@@ -1,4 +1,9 @@
 import type { SearchFn } from '../types.ts';
+import { catalog } from '../data/catalog.ts';
+import { metros } from '../data/metros.ts';
+import { createSearch } from './search.ts';
 
-// Stub: u2 replaces this with the real venue engine.
-export const searchVenues: SearchFn = (input) => ({ plan: { source: 'catalog', categories: [], searchTerm: input.item.trim().replace(/\s+/g, ' ') }, venues: [], notices: [] });
+export { createSearch } from './search.ts';
+
+/** Venue search over the built-in catalog and metro table. Pure: no network, no file system. */
+export const searchVenues: SearchFn = createSearch({ catalog, metros });
