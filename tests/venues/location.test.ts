@@ -183,3 +183,21 @@ describe('a typed state must match the metro (review round 1)', () => {
     expect(resolve(location)?.id).toBe(id);
   });
 });
+
+describe('integration review fixes', () => {
+  it('matches typographic apostrophes ("Lee’s Summit", "O’Fallon, MO")', () => {
+    for (const place of ['Lee’s Summit', 'O’Fallon, MO']) {
+      const result = searchVenues({ item: 'desk', location: place, delivery: 'both' });
+      expect(result.notices).toEqual([]);
+      const craigslist = result.venues.find((v) => v.url.includes('craigslist.org') && !v.url.includes('www.'));
+      expect(craigslist).toBeDefined();
+    }
+  });
+
+  it('does not show the unknown-location notice when delivery is ship (no local venues)', () => {
+    const ship = searchVenues({ item: 'desk', location: 'Nowhereville', delivery: 'ship' });
+    expect(ship.notices.some((n) => n.startsWith("Couldn't match"))).toBe(false);
+    const both = searchVenues({ item: 'desk', location: 'Nowhereville', delivery: 'both' });
+    expect(both.notices).toContain('Couldn\'t match "Nowhereville" to a city; local links are generic.');
+  });
+});

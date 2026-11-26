@@ -110,7 +110,8 @@ export function createSearch({ catalog, metros }: { catalog: Catalog; metros: Me
     if (matched.length === 0) notices.push(noMatchNotice(searchTerm));
 
     const local: Venue[] = [];
-    if (location && !metro) notices.push(unknownLocationNotice(location));
+    // With delivery 'ship' every local venue is filtered out, so a location notice would mislead.
+    if (location && !metro && delivery !== 'ship') notices.push(unknownLocationNotice(location));
     if (metro?.buySellSubreddit && SUBREDDIT_NAME.test(metro.buySellSubreddit)) {
       local.push(metroSubredditVenue(metro, metro.buySellSubreddit, searchTerm));
     }

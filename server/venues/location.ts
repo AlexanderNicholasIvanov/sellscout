@@ -19,11 +19,11 @@ const STATES: ReadonlyArray<readonly [string, string]> = [
 const ZIP = /^(\d{3})\d{2}(?:-\d{4})?$/;
 
 /**
- * Lower-case, fold diacritics, drop periods ("st. louis", "d.c."), turn commas into spaces and
- * collapse whitespace.
+ * Lower-case, fold diacritics, turn typographic apostrophes into ASCII ("Lee’s" -> "lee's"),
+ * drop periods ("st. louis", "d.c."), turn commas into spaces and collapse whitespace.
  */
 export function normalizePlace(text: string): string {
-  return fold(text).replace(/\./g, '').replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim();
+  return fold(text).replace(/[\u2018\u2019\u02BC]/g, "'").replace(/\./g, '').replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 /** Ways to read a trailing state: the city part and the 2-letter code ("seattle wa" -> seattle, wa). */
