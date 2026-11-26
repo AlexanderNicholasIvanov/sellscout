@@ -1,81 +1,105 @@
-// Stub server: u3 replaces this with the real API server.
+// sellscout API + UI server: node:http only, loopback only.
 import { createServer } from 'node:http';
-import type { ServerResponse } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
-import { extname, join, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import type { ErrorResponse, StatusResponse } from './types.ts';
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { readFileSync, realpathSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createApp } from './app.ts';
+import type { RequestHandler } from './app.ts';
+import type { SearchFn } from './types.ts';
+import { searchVenues } from './venues/index.ts';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
-const distDir = resolve(root, 'dist');
-const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
+export const DEFAULT_PORT = 5180;
+export const HOST = '127.0.0.1';
 
-const HOST = '127.0.0.1';
-const port = Number(process.env.PORT) || 5180;
+const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+export const DIST_DIR = join(repoRoot, 'dist');
 
-const contentTypes: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.ico': 'image/x-icon',
-  '.json': 'application/json; charset=utf-8',
-};
-
-function sendJson(res: ServerResponse, status: number, body: StatusResponse | ErrorResponse): void {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(body));
+export function readVersion(): string {
+  const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as { version: string };
+  return pkg.version;
 }
 
-const server = createServer((req, res) => {
-  const pathname = new URL(req.url ?? '/', `http://${HOST}:${port}`).pathname;
+/** `PORT` from the environment: unset or empty means 5180; anything but an integer 1-65535 is `null`. */
+export function parsePort(value: string | undefined): number | null {
+  if (value === undefined || value.trim() === '') return DEFAULT_PORT;
+  if (!/^\d+$/.test(value.trim())) return null;
+  const port = Number(value.trim());
+  return port >= 1 && port <= 65535 ? port : null;
+}
 
-  if (req.method !== 'GET') {
-    sendJson(res, 405, { error: 'Method not allowed' });
-    return;
-  }
-  if (pathname === '/api/status') {
-    sendJson(res, 200, { version });
-    return;
-  }
-  if (pathname.startsWith('/api/')) {
-    sendJson(res, 404, { error: 'Not found' });
-    return;
-  }
+export interface StartOptions {
+  /** 0 picks a free port (tests). */
+  port: number;
+  host?: string;
+  search?: SearchFn;
+  version?: string;
+  distDir?: string;
+}
 
-  let decoded: string;
+/** Starts listening; resolves once bound, rejects with the listen error (e.g. EADDRINUSE). */
+export function startServer(options: StartOptions): Promise<Server> {
+  const host = options.host ?? HOST;
+  // The app needs the bound port for its Host check, which is only known after listen (port 0).
+  let app: RequestHandler | undefined;
+  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    if (app) app(req, res);
+    else res.writeHead(503).end();
+  });
+
+  return new Promise((resolve, reject) => {
+    const onListenError = (err: Error): void => reject(err);
+    server.once('error', onListenError);
+    server.listen(options.port, host, () => {
+      server.off('error', onListenError);
+      server.on('error', (err) => console.error(err.stack ?? err.message));
+      const { port } = server.address() as AddressInfo;
+      app = createApp({
+        search: options.search ?? searchVenues,
+        version: options.version ?? readVersion(),
+        port,
+        distDir: options.distDir ?? DIST_DIR,
+      });
+      resolve(server);
+    });
+  });
+}
+
+async function main(): Promise<void> {
+  const port = parsePort(process.env.PORT);
+  if (port === null) {
+    console.error('PORT must be a number between 1 and 65535');
+    process.exitCode = 1;
+    return;
+  }
   try {
-    decoded = decodeURIComponent(pathname);
+    const server = await startServer({ port });
+    const { port: bound } = server.address() as AddressInfo;
+    console.log(`sellscout running at http://${HOST}:${bound}`);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+      console.error(`Port ${port} is in use; set PORT to another port`);
+      process.exitCode = 1;
+      return;
+    }
+    throw err;
+  }
+}
+
+function isEntryPoint(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return pathToFileURL(realpathSync(entry)).href === import.meta.url;
   } catch {
-    res.writeHead(400).end('Bad request');
-    return;
+    return false;
   }
-  const file = resolve(distDir, '.' + (decoded === '/' ? '/index.html' : decoded));
-  if (!file.startsWith(distDir + sep)) {
-    res.writeHead(404).end('Not found');
-    return;
-  }
-  readFile(file).then(
-    (data) => {
-      res.writeHead(200, { 'Content-Type': contentTypes[extname(file)] ?? 'application/octet-stream' });
-      res.end(data);
-    },
-    () => {
-      res.writeHead(404).end('Not found');
-    },
-  );
-});
+}
 
-server.on('error', (err: NodeJS.ErrnoException) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${port} is in use; set PORT to another port`);
-    process.exit(1);
-  }
-  throw err;
-});
-
-server.listen(port, HOST, () => {
-  console.log(`sellscout running at http://${HOST}:${port}`);
-});
+if (isEntryPoint()) {
+  main().catch((err: unknown) => {
+    console.error(err instanceof Error ? (err.stack ?? err.message) : 'Server failed to start');
+    process.exitCode = 1;
+  });
+}
