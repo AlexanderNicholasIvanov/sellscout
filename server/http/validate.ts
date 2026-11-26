@@ -17,9 +17,9 @@ export function isJsonContentType(header: string | undefined): boolean {
 }
 
 /** Length in characters (code points), so an emoji counts once. */
-const charLength = (s: string): number => Array.from(s).length;
+export const charLength = (s: string): number => Array.from(s).length;
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Parses and checks a POST /api/search body. Error strings are shown to the user as-is. */

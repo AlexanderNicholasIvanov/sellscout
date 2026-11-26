@@ -14,7 +14,7 @@ test.describe('accessibility', () => {
     }
     await expect(page.getByRole('group', { name: 'Delivery' })).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Buyer posts from the last' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Search' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeVisible();
   });
 
   test('AC24: the whole flow works with the keyboard alone', async ({ page }) => {
@@ -80,7 +80,7 @@ test.describe('accessibility', () => {
     await expect(select).toBeFocused();
     expect(await select.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
     await page.keyboard.press('Tab');
-    const button = page.getByRole('button', { name: 'Search' });
+    const button = page.getByRole('button', { name: 'Search', exact: true });
     await expect(button).toBeFocused();
     expect(await button.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
   });
@@ -112,7 +112,7 @@ test.describe('accessibility: people looking for it', () => {
 
     // Tab to the submit button; Enter searches.
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('button', { name: 'Search' })).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'People looking for it' })).toBeVisible();
     expect(calls).toHaveLength(1);
@@ -141,5 +141,63 @@ test.describe('accessibility: people looking for it', () => {
     }
     expect(reachedLook).toBe(true);
     await expect(page.locator('.look-links a:focus')).toHaveText('Search Reddit for buyers');
+  });
+});
+
+test.describe('accessibility: saved searches', () => {
+  test('AC9: keyboard only - save, run a saved search, delete it and accept the confirm', async ({ page }) => {
+    const { calls } = await mockSearch(page, 'buyers-ok');
+    await page.goto('/');
+
+    const focused = (name: string) =>
+      page.evaluate(
+        (n) => document.activeElement instanceof HTMLButtonElement && document.activeElement.getAttribute('aria-label') === n,
+        name,
+      );
+    async function tabTo(check: () => Promise<boolean>, max = 30) {
+      for (let i = 0; i < max; i++) {
+        if (await check()) return true;
+        await page.keyboard.press('Tab');
+      }
+      return check();
+    }
+
+    await page.keyboard.press('Tab');
+    await expect(page.getByLabel('What are you selling?')).toBeFocused();
+    await page.keyboard.type('mechanical keyboard');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: 'People looking for it' })).toBeVisible();
+    expect(calls).toHaveLength(1);
+
+    // Tab on to "Save search" and press Enter.
+    const save = page.getByRole('button', { name: 'Save search' });
+    expect(await tabTo(() => save.evaluate((el) => el === document.activeElement))).toBe(true);
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.save-row [role="status"]')).toHaveText('Saved');
+
+    // Tab (wrapping round from the results back to the top) to Run and press Enter.
+    const run = page.getByRole('button', { name: 'Run "mechanical keyboard"' });
+    expect(await tabTo(() => focused('Run "mechanical keyboard"'), 60)).toBe(true);
+    await expect(run).toBeFocused();
+    expect(await run.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.new-count')).toHaveText('Nothing new since your last run');
+    expect(calls).toHaveLength(2);
+    await expect(run).toBeEnabled();
+
+    // Tab to Delete, press Enter and accept the confirm.
+    const del = page.getByRole('button', { name: 'Delete "mechanical keyboard"' });
+    expect(await tabTo(() => focused('Delete "mechanical keyboard"'), 60)).toBe(true);
+    await expect(del).toBeFocused();
+    let message = '';
+    page.once('dialog', (d) => {
+      message = d.message();
+      void d.accept();
+    });
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: 'Saved searches' })).toHaveCount(0);
+    expect(message).toBe('Delete the saved search "mechanical keyboard"?');
+    // Focus goes back to the form, not lost on the page.
+    await expect(page.getByLabel('What are you selling?')).toBeFocused();
   });
 });

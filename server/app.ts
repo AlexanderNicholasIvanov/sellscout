@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ErrorResponse, SearchFn, StatusResponse } from './types.ts';
+import type { ErrorResponse, FixturesResponse, SearchFn, StatusResponse } from './types.ts';
+import type { FixtureStore } from './reddit/fixtures/store.ts';
 import { ClientAbortError, readBody } from './http/body.ts';
+import { parseFixtureRequest } from './http/fixtures.ts';
 import { isAllowedHost } from './http/host.ts';
 import { sendJson, setSecurityHeaders } from './http/respond.ts';
 import { serveStatic } from './http/static.ts';
@@ -16,6 +18,8 @@ export interface AppOptions {
   distDir: string;
   /** What GET /api/status reports. Default: Reddit off, fixtures off. */
   status?: { redditAuth: boolean; fixtures: boolean };
+  /** Fixture mode only: enables POST /api/__fixtures on this store. Unset: that path is a 404. */
+  fixtures?: FixtureStore;
 }
 
 export type RequestHandler = (req: IncomingMessage, res: ServerResponse) => void;
@@ -28,22 +32,42 @@ function methodNotAllowed(res: ServerResponse, allow: string): void {
 
 /** Builds the request handler. It holds no global state, so tests can inject a fake `search`. */
 export function createApp(opts: AppOptions): RequestHandler {
-  async function handleSearch(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  /** The JSON-only POST steps: content type (400), body cap (413). Returns the text, or null once answered. */
+  async function readJsonBody(req: IncomingMessage, res: ServerResponse): Promise<string | null> {
     if (!isJsonContentType(req.headers['content-type'])) {
       sendJson(res, 400, error('Content-Type must be application/json'));
-      return;
+      return null;
     }
     const body = await readBody(req, BODY_LIMIT);
     if (body.kind === 'too-large') {
       sendJson(res, 413, error('Request too large'), { Connection: 'close' });
-      return;
+      return null;
     }
-    const parsed = parseSearchRequest(body.body.toString('utf8'));
+    return body.body.toString('utf8');
+  }
+
+  async function handleSearch(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const text = await readJsonBody(req, res);
+    if (text === null) return;
+    const parsed = parseSearchRequest(text);
     if (!parsed.ok) {
       sendJson(res, 400, error(parsed.error));
       return;
     }
     sendJson(res, 200, await opts.search(parsed.value));
+  }
+
+  async function handleFixtures(req: IncomingMessage, res: ServerResponse, store: FixtureStore): Promise<void> {
+    const text = await readJsonBody(req, res);
+    if (text === null) return;
+    const parsed = parseFixtureRequest(text);
+    if (!parsed.ok) {
+      sendJson(res, 400, error(parsed.error));
+      return;
+    }
+    const posts = parsed.value.kind === 'reset' ? store.reset() : store.upsert(parsed.value.post);
+    const response: FixturesResponse = { ok: true, posts };
+    sendJson(res, 200, response);
   }
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -69,6 +93,12 @@ export function createApp(opts: AppOptions): RequestHandler {
       if (pathname === '/api/search') {
         if (req.method !== 'POST') return methodNotAllowed(res, 'POST');
         await handleSearch(req, res);
+        return;
+      }
+      // Exists only in fixture mode; otherwise it falls through to the 404 below.
+      if (pathname === '/api/__fixtures' && opts.fixtures) {
+        if (req.method !== 'POST') return methodNotAllowed(res, 'POST');
+        await handleFixtures(req, res, opts.fixtures);
         return;
       }
       sendJson(res, 404, error('Not found'));

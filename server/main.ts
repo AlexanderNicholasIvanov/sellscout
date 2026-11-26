@@ -10,6 +10,7 @@ import type { RequestHandler } from './app.ts';
 import { hasRedditKeys, readConfig } from './config.ts';
 import type { AppConfig } from './config.ts';
 import { installFetchGuard } from './fetch-guard.ts';
+import { createFixtureStore } from './reddit/fixtures/store.ts';
 import { createBuyerSearch } from './reddit/index.ts';
 import { createSearchService } from './search.ts';
 import type { SearchFn } from './types.ts';
@@ -88,12 +89,20 @@ export function startServer(options: StartOptions): Promise<Server> {
   const host = options.host ?? HOST;
   const config = options.config ?? readConfig({});
   const version = options.version ?? readVersion();
+  // Fixture mode: one store shared by the buyer search and POST /api/__fixtures. Off, or an
+  // injected `search` that would never read it: no store, so that route 404s.
+  const fixtureStore = config.fixtures && options.search === undefined ? createFixtureStore() : undefined;
   const search =
     options.search ??
     createSearchService({
       venues: searchVenues,
-      // Late-bound so the fixture-mode fetch guard applies to every request.
-      buyers: createBuyerSearch({ config, version, fetch: (input, init) => globalThis.fetch(input, init) }),
+      buyers: createBuyerSearch({
+        config,
+        version,
+        // Late-bound so the fixture-mode fetch guard applies to every request.
+        fetch: (input, init) => globalThis.fetch(input, init),
+        fixtureStore,
+      }),
     });
   // The app needs the bound port for its Host check, which is only known after listen (port 0).
   let app: RequestHandler | undefined;
@@ -115,6 +124,7 @@ export function startServer(options: StartOptions): Promise<Server> {
         port,
         distDir: options.distDir ?? DIST_DIR,
         status: { redditAuth: hasRedditKeys(config), fixtures: config.fixtures },
+        fixtures: fixtureStore,
       });
       resolve(server);
     });

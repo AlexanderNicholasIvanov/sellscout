@@ -7,7 +7,7 @@ test.describe('search results', () => {
     await page.goto('/');
 
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
 
     await expect(page.getByText(/^Understood as: .+ · via built-in catalog$/)).toHaveText(
       'Understood as: Mechanical keyboards · via built-in catalog',
@@ -61,7 +61,7 @@ test.describe('search results', () => {
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
     await page.getByLabel('Location (optional)').fill('  Seattle  ');
     await page.getByLabel('Ship it').check();
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
 
     await expect(page.getByRole('heading', { name: 'Where to post it' })).toBeVisible();
     expect(calls[0].body).toEqual({ item: 'mechanical keyboard', location: 'Seattle', delivery: 'ship', window: 30 });
@@ -72,7 +72,7 @@ test.describe('search results', () => {
     await page.goto('/');
 
     await page.getByLabel('What are you selling?').fill('asdfgh');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
 
     await expect(page.getByRole('status')).toContainText(
       'No specialist boards matched "asdfgh". Try more specific words (brand, model, type).',
@@ -86,7 +86,7 @@ test.describe('search results', () => {
 
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
     await page.getByLabel('Location (optional)').fill('Nowhereville');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
 
     const status = page.getByRole('status');
     await expect(status.getByRole('listitem')).toHaveText([
@@ -115,13 +115,13 @@ test.describe('search results', () => {
     const notice = 'No specialist boards matched "asdfgh". Try more specific words (brand, model, type).';
     const status = page.getByRole('status');
     await page.getByLabel('What are you selling?').fill('asdfgh');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(status.getByRole('listitem')).toHaveText([notice]);
 
     gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Searching...' })).toBeDisabled();
     await expect(status.getByRole('listitem')).toHaveCount(0);
     await expect(status).toHaveText('');
@@ -142,7 +142,7 @@ test.describe('search results', () => {
     await page.goto('/');
 
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Where to post it' })).toBeVisible();
 
     const links = page.locator('section.results a');
@@ -162,7 +162,7 @@ test.describe('search results', () => {
     await page.goto('/');
 
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Where to post it' })).toBeVisible();
 
     const overflow = await page.evaluate(

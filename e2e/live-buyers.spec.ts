@@ -18,7 +18,7 @@ const ABSENT_30 = {
 async function search(page: Page, item: string, windowLabel: '7 days' | '30 days' | '90 days') {
   await page.getByLabel('What are you selling?').fill(item);
   await page.getByLabel('Buyer posts from the last').selectOption({ label: windowLabel });
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'People looking for it' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeEnabled();
 }

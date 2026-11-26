@@ -7,7 +7,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DOTENV_PATH, FIXTURE_MODE_MESSAGE, loadDotEnv, parsePort, prepareConfig, startServer } from '../../server/main.ts';
-import { closeServer, fakeResult, rawRequest } from './helpers.ts';
+import { readConfig } from '../../server/config.ts';
+import { FIXTURE_POSTS } from '../../server/reddit/fixtures/posts.ts';
+import type { SearchResult } from '../../server/types.ts';
+import { closeServer, fakeResult, json, postFixtures, postSearch, rawRequest } from './helpers.ts';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string };
@@ -98,6 +101,61 @@ describe('startServer (AC3)', () => {
     cleanups.push(() => new Promise((r) => blocker.close(() => r())));
     const { port } = blocker.address() as AddressInfo;
     await expect(startServer({ port })).rejects.toMatchObject({ code: 'EADDRINUSE' });
+  });
+});
+
+describe('startServer and POST /api/__fixtures (run 2b AC5)', () => {
+  const searchIds = async (port: number, item: string): Promise<string[]> => {
+    const res = await postSearch(port, { item, window: 30 });
+    expect(res.status).toBe(200);
+    const result = json(res) as SearchResult;
+    expect(result.buyers.status).toBe('ok');
+    return result.buyers.posts.map((p) => p.id);
+  };
+
+  it('in fixture mode the buyer search and the app share one store', async () => {
+    const server = await startServer({ port: 0, version: '1.2.3', config: readConfig({ SELLSCOUT_FIXTURES: '1' }) });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    expect(await searchIds(port, 'zorblax widget')).toEqual([]);
+
+    const added = await postFixtures(port, { post: { id: 'zx_main', title: 'WTB zorblax widget', subreddit: 'hardwareswap' } });
+    expect(added.status).toBe(200);
+    expect(json(added)).toEqual({ ok: true, posts: FIXTURE_POSTS.length + 1 });
+    expect(await searchIds(port, 'zorblax widget')).toEqual(['zx_main']);
+
+    const reset = await postFixtures(port, { reset: true });
+    expect(json(reset)).toEqual({ ok: true, posts: FIXTURE_POSTS.length });
+    expect(await searchIds(port, 'zorblax widget')).toEqual([]);
+  });
+
+  it('two fixture-mode servers do not share added posts', async () => {
+    const a = await startServer({ port: 0, version: '1.2.3', config: readConfig({ SELLSCOUT_FIXTURES: '1' }) });
+    cleanups.push(() => closeServer(a));
+    const b = await startServer({ port: 0, version: '1.2.3', config: readConfig({ SELLSCOUT_FIXTURES: '1' }) });
+    cleanups.push(() => closeServer(b));
+    const portA = (a.address() as AddressInfo).port;
+    const portB = (b.address() as AddressInfo).port;
+    await postFixtures(portA, { post: { id: 'zx_a', title: 'WTB zorblax widget', subreddit: 'hardwareswap' } });
+    expect(await searchIds(portA, 'zorblax widget')).toEqual(['zx_a']);
+    expect(await searchIds(portB, 'zorblax widget')).toEqual([]);
+  });
+
+  it('with fixtures off /api/__fixtures is a 404', async () => {
+    const server = await startServer({ port: 0, version: '1.2.3', config: readConfig({}) });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    const res = await postFixtures(port, { reset: true });
+    expect(res.status).toBe(404);
+    expect(json(res)).toEqual({ error: 'Not found' });
+    expect((await rawRequest(port, { path: '/api/__fixtures' })).status).toBe(404);
+  });
+
+  it('the default config (no config given) has no /api/__fixtures either', async () => {
+    const server = await startServer({ port: 0, search: fakeResult, version: '1.2.3' });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    expect((await postFixtures(port, { reset: true })).status).toBe(404);
   });
 });
 

@@ -1,8 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
-import type { BuyerPost, BuyersResult, BuyerWindow, Delivery, SearchResult, Venue } from '../server/types.ts';
+import type { FormEvent, RefObject } from 'react';
+import type {
+  BuyerPost,
+  BuyersResult,
+  BuyerWindow,
+  Delivery,
+  SearchInput,
+  SearchResult,
+  Venue,
+} from '../server/types.ts';
 import { BUYER_WINDOWS, DEFAULT_BUYER_WINDOW, buildSearchInput, search, status } from './api.ts';
 import {
+  ageText,
   buyersSearchedText,
   kindLabel,
   postMetaText,
@@ -13,6 +22,17 @@ import {
   understoodAs,
   whyText,
 } from './format.ts';
+import {
+  SAVED_MESSAGE,
+  add,
+  applyRun,
+  load,
+  newCountText,
+  newPostIds,
+  remove,
+  write,
+} from './saved.ts';
+import type { SavedSearch, SavedStorage } from './saved.ts';
 import { LOCATION_MAX, loadLocation, saveLocation } from './storage.ts';
 
 const ITEM_MAX = 200;
@@ -25,6 +45,24 @@ const DELIVERY_OPTIONS: { value: Delivery; label: string }[] = [
   { value: 'local', label: 'Local pickup' },
   { value: 'both', label: 'Both' },
 ];
+
+const deliveryLabel = (delivery: Delivery): string =>
+  DELIVERY_OPTIONS.find((opt) => opt.value === delivery)?.label ?? delivery;
+
+// localStorage is looked up on every call, so a getter that throws is caught in saved.ts.
+const browserStorage: SavedStorage = {
+  getItem: (key) => window.localStorage.getItem(key),
+  setItem: (key, value) => window.localStorage.setItem(key, value),
+};
+
+/** A shown result, the input that produced it and, for a Run, the record's ids seen before it. */
+interface Shown {
+  result: SearchResult;
+  input: SearchInput;
+  /** When the result arrived; post ages are relative to it so rendering stays pure. */
+  at: number;
+  run?: { id: string; seenPostIds: string[] };
+}
 
 function ExternalLink({ href, children }: { href: string | undefined; children: string }) {
   const safe = safeHref(href);
@@ -65,11 +103,12 @@ function VenueRow({ venue, searchTerm }: { venue: Venue; searchTerm: string }) {
   );
 }
 
-function PostRow({ post, nowMs }: { post: BuyerPost; nowMs: number }) {
+function PostRow({ post, nowMs, isNew }: { post: BuyerPost; nowMs: number; isNew: boolean }) {
   const href = safeHref(post.url);
   return (
     <li className="post">
       <p className="post-title">
+        {isNew ? <span className="badge badge-new">New</span> : null}
         {href ? (
           <a href={href} target="_blank" rel="noopener noreferrer">
             {post.title}
@@ -85,19 +124,31 @@ function PostRow({ post, nowMs }: { post: BuyerPost; nowMs: number }) {
   );
 }
 
-function BuyersBody({ buyers, nowMs }: { buyers: BuyersResult; nowMs: number }) {
+interface BuyersProps {
+  buyers: BuyersResult;
+  nowMs: number;
+  /** The ids of the posts not seen before, for a Run result; null for a form search. */
+  newIds: Set<string> | null;
+}
+
+function BuyersBody({ buyers, nowMs, newIds }: BuyersProps) {
   switch (buyers.status) {
     case 'ok':
-      return buyers.posts.length > 0 ? (
-        <ol className="posts">
-          {buyers.posts.map((post) => (
-            <PostRow key={post.id} post={post} nowMs={nowMs} />
-          ))}
-        </ol>
-      ) : (
-        <p className="buyers-message">
-          No one is asking for this on Reddit in the last {buyers.windowDays} days.
-        </p>
+      return (
+        <>
+          {newIds ? <p className="new-count">{newCountText(newIds.size)}</p> : null}
+          {buyers.posts.length > 0 ? (
+            <ol className="posts">
+              {buyers.posts.map((post) => (
+                <PostRow key={post.id} post={post} nowMs={nowMs} isNew={newIds?.has(post.id) ?? false} />
+              ))}
+            </ol>
+          ) : (
+            <p className="buyers-message">
+              No one is asking for this on Reddit in the last {buyers.windowDays} days.
+            </p>
+          )}
+        </>
       );
     case 'unavailable':
       return <p className="buyers-message">Reddit search unavailable: {buyers.reason ?? 'unknown error'}</p>;
@@ -114,13 +165,13 @@ function BuyersBody({ buyers, nowMs }: { buyers: BuyersResult; nowMs: number }) 
   }
 }
 
-function Buyers({ buyers, nowMs }: { buyers: BuyersResult; nowMs: number }) {
+function Buyers({ buyers, nowMs, newIds }: BuyersProps) {
   const links = buyers.links.filter((link) => safeHref(link.url) !== null);
   return (
     <div className="buyers">
       <h2>People looking for it</h2>
       <p className="buyers-searched">{buyersSearchedText(buyers.term, buyers.windowDays)}</p>
-      <BuyersBody buyers={buyers} nowMs={nowMs} />
+      <BuyersBody buyers={buyers} nowMs={nowMs} newIds={newIds} />
       <h3 className="look-yourself">Look yourself</h3>
       {links.length > 0 ? (
         <ul className="look-links">
@@ -135,10 +186,37 @@ function Buyers({ buyers, nowMs }: { buyers: BuyersResult; nowMs: number }) {
   );
 }
 
-function Results({ result, nowMs }: { result: SearchResult; nowMs: number }) {
+interface SaveMessage {
+  text: string;
+  /** Bumped on every message so a repeated one re-mounts and is announced again. */
+  key: number;
+}
+
+function Results({
+  shown,
+  onSave,
+  saveMessage,
+}: {
+  shown: Shown;
+  onSave: () => void;
+  saveMessage: SaveMessage | null;
+}) {
+  const { result, at: nowMs, run } = shown;
+  // "New" badges and the count line belong to a Run result only.
+  const newIds = run ? new Set(newPostIds(result.buyers.posts, run.seenPostIds)) : null;
   return (
     <>
       <p className="understood">{understoodAs(result.plan)}</p>
+      <div className="save-row">
+        <button type="button" className="secondary" onClick={onSave}>
+          Save search
+        </button>
+        {saveMessage ? (
+          <p key={saveMessage.key} role="status" className="save-message">
+            {saveMessage.text}
+          </p>
+        ) : null}
+      </div>
       <h2>Where to post it</h2>
       {result.venues.length > 0 ? (
         <ol className="venues">
@@ -149,8 +227,75 @@ function Results({ result, nowMs }: { result: SearchResult; nowMs: number }) {
       ) : (
         <p>No boards fit this delivery choice. Try another delivery option.</p>
       )}
-      <Buyers buyers={result.buyers} nowMs={nowMs} />
+      <Buyers buyers={result.buyers} nowMs={nowMs} newIds={newIds} />
     </>
+  );
+}
+
+function SavedPanel({
+  list,
+  notice,
+  nowMs,
+  runDisabled,
+  onRun,
+  onDelete,
+  headingRef,
+}: {
+  list: SavedSearch[];
+  notice: string | null;
+  nowMs: number;
+  runDisabled: boolean;
+  onRun: (record: SavedSearch) => void;
+  onDelete: (record: SavedSearch) => void;
+  headingRef: RefObject<HTMLHeadingElement | null>;
+}) {
+  if (list.length === 0 && notice === null) return null;
+  return (
+    <section className="saved" aria-labelledby="saved-heading">
+      <h2 id="saved-heading" ref={headingRef} tabIndex={-1}>
+        Saved searches
+      </h2>
+      {notice !== null ? (
+        <p role="status" className="saved-notice">
+          {notice}
+        </p>
+      ) : null}
+      {list.length > 0 ? (
+        <ul className="saved-list">
+          {list.map((record) => (
+            <li key={record.id} className="saved-row">
+              <div className="saved-text">
+                <p className="saved-item">{record.item}</p>
+                <p className="saved-meta">
+                  {deliveryLabel(record.delivery)} · last {record.window} days
+                </p>
+                {record.location.trim() !== '' ? <p className="saved-location">{record.location}</p> : null}
+                <p className="saved-run">last run {ageText(record.lastRunAt / 1000, nowMs)}</p>
+              </div>
+              <div className="saved-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  aria-label={`Run "${record.item}"`}
+                  disabled={runDisabled}
+                  onClick={() => onRun(record)}
+                >
+                  Run
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  aria-label={`Delete "${record.item}"`}
+                  onClick={() => onDelete(record)}
+                >
+                  Delete
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }
 
@@ -167,10 +312,20 @@ export function App() {
   const [searchId, setSearchId] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<SearchResult | null>(null);
-  // When the result arrived; post ages are relative to it so rendering stays pure.
-  const [resultAt, setResultAt] = useState(0);
+  const [shown, setShown] = useState<Shown | null>(null);
+  // The saved list is read once, on mount.
+  const [boot] = useState(() => ({ ...load(browserStorage), at: Date.now() }));
+  const [saved, setSaved] = useState<SavedSearch[]>(boot.list);
+  // The latest list, for a Run that finishes after the list changed.
+  const savedRef = useRef<SavedSearch[]>(boot.list);
+  // "last run" ages are relative to the last time the list changed, so rendering stays pure.
+  const [savedNow, setSavedNow] = useState(boot.at);
+  // The load-time reset notice stays until reload; a failed write has its own slot.
+  const storageNotice = boot.notice ?? null;
+  const [writeError, setWriteError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<SaveMessage | null>(null);
   const itemRef = useRef<HTMLInputElement>(null);
+  const savedHeadingRef = useRef<HTMLHeadingElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -184,6 +339,51 @@ export function App() {
     return () => controller.abort();
   }, []);
 
+  /** Shows a list that was just written; "last run" ages restart from `nowMs`. */
+  function commitList(next: SavedSearch[], nowMs: number) {
+    savedRef.current = next;
+    setSaved(next);
+    setSavedNow(nowMs);
+    setWriteError(null);
+  }
+
+  /** The one search path, for the form and for Run. `run` marks a Run of a saved search. */
+  async function runSearch(input: SearchInput, run?: Shown['run']) {
+    setItemError(false);
+    setError(null);
+    setLoading(true);
+    setSearchId((n) => n + 1);
+    setSaveMessage(null);
+    // Clear the previous notices so the status region changes and announces the new ones.
+    setShown((prev) => (prev ? { ...prev, result: { ...prev.result, notices: [] } } : prev));
+    if (input.location) saveLocation(input.location);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      const data = await search(input, controller.signal);
+      if (controller.signal.aborted) return;
+      const at = Date.now();
+      setShown({ result: data, input, at, run });
+      if (run) {
+        const postIds = data.buyers.posts.map((post) => post.id);
+        // undefined: the record was deleted while its search ran, so nothing is written.
+        const next = applyRun(savedRef.current, run.id, postIds, at);
+        if (next) {
+          const failed = write(browserStorage, next);
+          if (failed !== null) setWriteError(failed);
+          else commitList(next, at);
+        }
+      }
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      setShown(null);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (loading) return;
@@ -193,29 +393,52 @@ export function App() {
       itemRef.current?.focus();
       return;
     }
-    setItemError(false);
-    setError(null);
-    setLoading(true);
-    setSearchId((n) => n + 1);
-    // Clear the previous notices so the status region changes and announces the new ones.
-    setResult((prev) => (prev ? { ...prev, notices: [] } : prev));
-    const input = buildSearchInput(item, location, delivery, buyerWindow);
-    if (input.location) saveLocation(input.location);
+    await runSearch(buildSearchInput(item, location, delivery, buyerWindow));
+  }
 
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      const data = await search(input, controller.signal);
-      if (controller.signal.aborted) return;
-      setResultAt(Date.now());
-      setResult(data);
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      setResult(null);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      if (!controller.signal.aborted) setLoading(false);
+  function onRun(record: SavedSearch) {
+    if (loading) return;
+    setItem(record.item);
+    setLocation(record.location);
+    setDelivery(record.delivery);
+    setBuyerWindow(record.window);
+    void runSearch(buildSearchInput(record.item, record.location, record.delivery, record.window), {
+      id: record.id,
+      seenPostIds: record.seenPostIds,
+    });
+  }
+
+  function onDelete(record: SavedSearch) {
+    if (!window.confirm(`Delete the saved search "${record.item}"?`)) return;
+    const next = remove(savedRef.current, record.id);
+    const failed = write(browserStorage, next);
+    if (failed !== null) {
+      setWriteError(failed);
+      return;
     }
+    commitList(next, Date.now());
+    // The focused button is gone: keep focus in the panel, or go back to the form when it hides.
+    if (next.length > 0) savedHeadingRef.current?.focus();
+    else itemRef.current?.focus();
+  }
+
+  function onSave() {
+    if (!shown) return;
+    const show = (text: string) => setSaveMessage((prev) => ({ text, key: (prev?.key ?? 0) + 1 }));
+    const now = Date.now();
+    const postIds = shown.result.buyers.posts.map((post) => post.id);
+    const added = add(savedRef.current, shown.input, postIds, now);
+    if ('message' in added) {
+      show(added.message);
+      return;
+    }
+    const failed = write(browserStorage, added.list);
+    if (failed !== null) {
+      show(failed);
+      return;
+    }
+    commitList(added.list, now);
+    show(SAVED_MESSAGE);
   }
 
   return (
@@ -320,21 +543,31 @@ export function App() {
           </button>
         </form>
 
+        <SavedPanel
+          list={saved}
+          notice={[storageNotice, writeError].filter((n) => n !== null).join(' ') || null}
+          nowMs={savedNow}
+          runDisabled={loading}
+          onRun={onRun}
+          onDelete={onDelete}
+          headingRef={savedHeadingRef}
+        />
+
         <div role="alert" className="alert-region">
           {error !== null ? <p className="alert">Search failed: {error}</p> : null}
         </div>
 
         <section className="results" aria-label="Results" aria-busy={loading ? 'true' : 'false'}>
           <div role="status" className="notices">
-            {result && result.notices.length > 0 ? (
+            {shown && shown.result.notices.length > 0 ? (
               <ul key={searchId}>
-                {result.notices.map((notice, i) => (
+                {shown.result.notices.map((notice, i) => (
                   <li key={i}>{notice}</li>
                 ))}
               </ul>
             ) : null}
           </div>
-          {result ? <Results result={result} nowMs={resultAt} /> : null}
+          {shown ? <Results shown={shown} onSave={onSave} saveMessage={saveMessage} /> : null}
         </section>
       </main>
     </div>
