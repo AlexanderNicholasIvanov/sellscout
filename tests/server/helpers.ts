@@ -5,9 +5,10 @@ import { createApp } from '../../server/app.ts';
 import type { AppOptions, RequestHandler } from '../../server/app.ts';
 import type { SearchFn, SearchInput, SearchResult } from '../../server/types.ts';
 
-export const fakeResult = (input: SearchInput): SearchResult => ({
+export const fakeResult = async (input: SearchInput): Promise<SearchResult> => ({
   plan: { source: 'catalog', categories: [], searchTerm: input.item },
   venues: [],
+  buyers: { status: 'disabled', term: input.item, windowDays: input.window, posts: [], links: [] },
   notices: [],
 });
 
@@ -20,7 +21,7 @@ export interface TestApp {
 /** Runs createApp on a real loopback socket on an ephemeral port. */
 export async function listenApp(overrides: Partial<Omit<AppOptions, 'port'>> = {}): Promise<TestApp> {
   const calls: SearchInput[] = [];
-  const recordingSearch: SearchFn = (input) => {
+  const recordingSearch: SearchFn = async (input) => {
     calls.push(input);
     return (overrides.search ?? fakeResult)(input);
   };
@@ -34,6 +35,7 @@ export async function listenApp(overrides: Partial<Omit<AppOptions, 'port'>> = {
     distDir: overrides.distDir ?? '/nonexistent-sellscout-dist',
     search: recordingSearch,
     port,
+    ...(overrides.status ? { status: overrides.status } : {}),
   });
   return { port, calls, close: () => closeServer(server) };
 }

@@ -13,6 +13,14 @@ function envReads(source: string): string[] {
   return [...source.matchAll(ENV_READ)].map((m) => m[1] ?? m[2] ?? '');
 }
 
+/** `env.NAME` reads in server/config.ts, where readConfig takes the environment as a parameter. */
+const CONFIG_ENV_READ = /\benv\.([A-Z_][A-Z0-9_]*)/g;
+const CONFIG_FILE = join(repoRoot, 'server', 'config.ts');
+
+function configEnvReads(source: string): string[] {
+  return [...source.matchAll(CONFIG_ENV_READ)].map((m) => m[1] ?? '');
+}
+
 function scannedFiles(): string[] {
   const serverFiles = readdirSync(join(repoRoot, 'server'), { recursive: true, encoding: 'utf8' })
     .filter((f) => f.endsWith('.ts'))
@@ -45,7 +53,44 @@ describe('.env.example (AC25)', () => {
         if (!ALLOWLIST.has(name) && !documented.has(name)) missing.push(`${name} (${relative(repoRoot, file)})`);
       }
     }
+    for (const name of configEnvReads(readFileSync(CONFIG_FILE, 'utf8'))) {
+      seen.add(name);
+      if (!ALLOWLIST.has(name) && !documented.has(name)) missing.push(`${name} (server/config.ts)`);
+    }
     expect(seen.has('PORT')).toBe(true);
+    expect(seen.has('REDDIT_CLIENT_ID')).toBe(true);
     expect(missing).toEqual([]);
+  });
+
+  it('the config scanner recognises env.NAME reads (run 2a AC17)', () => {
+    expect(configEnvReads('env.PORT; deps.env.SELLSCOUT_FIXTURES; env.REDDIT_CLIENT_ID; myenv.NOPE; env.lower')).toEqual([
+      'PORT',
+      'SELLSCOUT_FIXTURES',
+      'REDDIT_CLIENT_ID',
+    ]);
+  });
+
+  it('sees every variable server/config.ts reads, and each is in .env.example', () => {
+    const names = configEnvReads(readFileSync(CONFIG_FILE, 'utf8'));
+    expect(new Set(names)).toEqual(
+      new Set([
+        'PORT',
+        'SELLSCOUT_FIXTURES',
+        'SELLSCOUT_FIXTURE_DELAY_MS',
+        'REDDIT_CLIENT_ID',
+        'REDDIT_CLIENT_SECRET',
+        'REDDIT_USERNAME',
+      ]),
+    );
+    const documented = documentedVars();
+    expect(names.filter((name) => !documented.has(name))).toEqual([]);
+  });
+
+  it('says the fixture variables belong in the shell environment, not .env', () => {
+    const text = readFileSync(join(repoRoot, '.env.example'), 'utf8');
+    expect(text).toMatch(/shell environment, not in \.env/);
+    for (const name of ['PORT', 'REDDIT_CLIENT_ID', 'REDDIT_CLIENT_SECRET', 'REDDIT_USERNAME', 'SELLSCOUT_FIXTURES', 'SELLSCOUT_FIXTURE_DELAY_MS']) {
+      expect(text.split(/\r?\n/)).toContain(`${name}=`);
+    }
   });
 });

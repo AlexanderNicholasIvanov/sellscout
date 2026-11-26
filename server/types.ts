@@ -29,7 +29,8 @@ export interface Metro {
   buySellSubreddit?: string;  // name without r/, e.g. "SeattleBuySell" (only if real and active)
 }
 
-export interface SearchInput { item: string; location?: string; delivery: Delivery }
+export type BuyerWindow = 7 | 30 | 90;
+export interface SearchInput { item: string; location?: string; delivery: Delivery; window: BuyerWindow }
 
 export interface Venue {
   id: string;
@@ -46,8 +47,27 @@ export interface Venue {
 }
 
 export interface SearchPlan { source: 'catalog'; categories: { id: string; name: string }[]; searchTerm: string }
-export interface SearchResult { plan: SearchPlan; venues: Venue[]; notices: string[] }
-export type SearchFn = (input: SearchInput) => SearchResult;
 
-export interface StatusResponse { version: string }
+export interface BuyerPost {
+  id: string; title: string; subreddit: string; author: string;
+  createdUtc: number;   // seconds since epoch, as Reddit's created_utc
+  score: number; numComments: number;
+  snippet: string;      // plain text, <= 200 chars, '' when no body
+  url: string;          // https://www.reddit.com + permalink
+}
+export interface FallbackLink { label: string; url: string }
+export type BuyerStatus = 'ok' | 'unavailable' | 'disabled';
+export interface BuyersResult {
+  status: BuyerStatus; reason?: string;   // reason only when 'unavailable'
+  term: string; windowDays: BuyerWindow; posts: BuyerPost[]; links: FallbackLink[];
+}
+export interface SearchResult { plan: SearchPlan; venues: Venue[]; buyers: BuyersResult; notices: string[] }
+export type SearchFn = (input: SearchInput) => Promise<SearchResult>;
+
+/** What the venue search hands the buyer search; never sent to the browser. */
+export interface BuyerContext { subreddits: string[]; craigslist?: string }
+export type VenueSearchResult = Omit<SearchResult, 'buyers'> & { context: BuyerContext };
+export type VenueSearchFn = (input: SearchInput) => VenueSearchResult;
+
+export interface StatusResponse { version: string; redditAuth: boolean; fixtures: boolean }
 export interface ErrorResponse { error: string }

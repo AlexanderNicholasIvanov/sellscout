@@ -27,5 +27,6 @@
       "categoryIds": []
     }
   ],
+  "buyers": { "status": "disabled", "term": "asdfgh", "windowDays": 30, "posts": [], "links": [] },
   "notices": ["No specialist boards matched \"asdfgh\". Try more specific words (brand, model, type)."]
 }

@@ -81,11 +81,12 @@ describe('api', () => {
   });
 
   it('omits a blank location and trims the fields', () => {
-    expect(buildSearchInput(' tv ', '  ', 'both')).toEqual({ item: 'tv', delivery: 'both' });
+    expect(buildSearchInput(' tv ', '  ', 'both')).toEqual({ item: 'tv', delivery: 'both', window: 30 });
     expect(buildSearchInput('tv', ' Seattle ', 'local')).toEqual({
       item: 'tv',
       location: 'Seattle',
       delivery: 'local',
+      window: 30,
     });
   });
 
@@ -94,16 +95,16 @@ describe('api', () => {
       'fetch',
       vi.fn(async () => new Response(JSON.stringify({ error: 'Item too long' }), { status: 400 })),
     );
-    await expect(search({ item: 'x', delivery: 'both' })).rejects.toThrow('Item too long');
+    await expect(search({ item: 'x', delivery: 'both', window: 30 })).rejects.toThrow('Item too long');
 
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('oops', { status: 502, statusText: 'Bad Gateway' })),
     );
-    await expect(search({ item: 'x', delivery: 'both' })).rejects.toThrow('Bad Gateway');
+    await expect(search({ item: 'x', delivery: 'both', window: 30 })).rejects.toThrow('Bad Gateway');
 
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 500 })));
-    await expect(search({ item: 'x', delivery: 'both' })).rejects.toThrow('HTTP 500');
+    await expect(search({ item: 'x', delivery: 'both', window: 30 })).rejects.toThrow('HTTP 500');
   });
 
   it('reports network errors and malformed bodies', async () => {
@@ -113,9 +114,9 @@ describe('api', () => {
         throw new TypeError('Failed to fetch');
       }),
     );
-    await expect(search({ item: 'x', delivery: 'both' })).rejects.toThrow('Failed to fetch');
+    await expect(search({ item: 'x', delivery: 'both', window: 30 })).rejects.toThrow('Failed to fetch');
 
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{"venues":3}', { status: 200 })));
-    await expect(search({ item: 'x', delivery: 'both' })).rejects.toThrow('Unexpected response');
+    await expect(search({ item: 'x', delivery: 'both', window: 30 })).rejects.toThrow('Unexpected response');
   });
 });

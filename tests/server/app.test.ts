@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { json, listenApp, postSearch, rawRequest } from './helpers.ts';
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { readConfig } from '../../server/config.ts';
+import { installFetchGuard } from '../../server/fetch-guard.ts';
+import { startServer } from '../../server/main.ts';
+import { closeServer, json, listenApp, postSearch, rawRequest } from './helpers.ts';
 import type { TestApp } from './helpers.ts';
 
 const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string };
@@ -19,7 +24,7 @@ describe('GET /api/status (AC5)', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('application/json; charset=utf-8');
     expect(res.headers.get('cache-control')).toBe('no-store');
-    expect(await res.json()).toEqual({ version: pkg.version });
+    expect(await res.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: false });
   });
 
   it('accepts localhost:<port> as Host', async () => {
@@ -129,8 +134,72 @@ describe('POST /api/search happy path', () => {
     expect(await res.json()).toEqual({
       plan: { source: 'catalog', categories: [], searchTerm: 'road bike' },
       venues: [],
+      buyers: { status: 'disabled', term: 'road bike', windowDays: 30, posts: [], links: [] },
       notices: [],
     });
-    expect(app.calls).toEqual([{ item: 'road bike', location: 'Seattle', delivery: 'local' }]);
+    expect(app.calls).toEqual([{ item: 'road bike', location: 'Seattle', delivery: 'local', window: 30 }]);
   });
+});
+
+describe('GET /api/status with injected status (run 2a AC3)', () => {
+  it.each([
+    [{ redditAuth: true, fixtures: false }],
+    [{ redditAuth: false, fixtures: true }],
+    [{ redditAuth: false, fixtures: false }],
+  ])('reports %j', async (status) => {
+    app = await listenApp({ version: '9.9.9', status });
+    const res = await rawRequest(app.port, { path: '/api/status' });
+    expect(res.status).toBe(200);
+    expect(json(res)).toEqual({ version: '9.9.9', ...status });
+  });
+
+  it('defaults both flags to false', async () => {
+    app = await listenApp({ version: '9.9.9' });
+    expect(json(await rawRequest(app.port, { path: '/api/status' }))).toEqual({
+      version: '9.9.9',
+      redditAuth: false,
+      fixtures: false,
+    });
+  });
+});
+
+describe('secrets never reach a response or the console (run 2a AC18)', () => {
+  const SECRET = 'SENTINEL-SECRET-123';
+  const ID = 'SENTINEL-ID-456';
+  let server: Server | undefined;
+  let restoreFetch: (() => void) | undefined;
+  afterEach(async () => {
+    restoreFetch?.();
+    restoreFetch = undefined;
+    if (server) await closeServer(server);
+    server = undefined;
+  });
+
+  it('keeps the Reddit keys out of /api/status, /api/search and the logs', async () => {
+    // No request may leave the machine: the guard makes every Reddit call fail.
+    restoreFetch = installFetchGuard();
+    const logged: unknown[] = [];
+    for (const method of ['log', 'info', 'warn', 'error', 'debug'] as const) {
+      vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
+        logged.push(...args);
+      });
+    }
+    const config = readConfig({ REDDIT_CLIENT_ID: ID, REDDIT_CLIENT_SECRET: SECRET, REDDIT_USERNAME: 'tester' });
+    server = await startServer({ port: 0, version: '1.2.3', config });
+    const { port } = server.address() as AddressInfo;
+
+    const status = await rawRequest(port, { path: '/api/status' });
+    expect(json(status)).toEqual({ version: '1.2.3', redditAuth: true, fixtures: false });
+
+    const search = await postSearch(port, { item: 'RTX 3080', location: 'Seattle', delivery: 'both', window: 30 });
+    expect(search.status).toBe(200);
+    const body = json(search) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(['buyers', 'notices', 'plan', 'venues']);
+
+    for (const text of [status.body, search.body, logged.map(String).join('\n')]) {
+      expect(text).not.toContain(SECRET);
+      expect(text).not.toContain(ID);
+      expect(text).not.toContain(Buffer.from(`${ID}:${SECRET}`).toString('base64'));
+    }
+  }, 40_000);
 });

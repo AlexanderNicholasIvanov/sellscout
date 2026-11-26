@@ -3,9 +3,10 @@ import type { ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import type { AddressInfo, Server as NetServer } from 'node:net';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { parsePort, startServer } from '../../server/main.ts';
+import { DOTENV_PATH, FIXTURE_MODE_MESSAGE, loadDotEnv, parsePort, prepareConfig, startServer } from '../../server/main.ts';
 import { closeServer, fakeResult, rawRequest } from './helpers.ts';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
@@ -34,11 +35,20 @@ interface Spawned {
   exit: Promise<number | null>;
 }
 
+/** The test runner's environment without any sellscout or Reddit setting from the developer's shell. */
+function cleanEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const name of Object.keys(env)) {
+    if (name.startsWith('SELLSCOUT_') || name.startsWith('REDDIT_')) delete env[name];
+  }
+  return env;
+}
+
 /** Spawns `node server/main.ts` (no shell, so the PID is node's own). */
-function spawnMain(port: string): Spawned {
+function spawnMain(port: string, extraEnv: Record<string, string> = {}): Spawned {
   const child = spawn(process.execPath, ['server/main.ts'], {
     cwd: repoRoot,
-    env: { ...process.env, PORT: port },
+    env: { ...cleanEnv(), NODE_ENV: 'test', PORT: port, ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';
@@ -80,7 +90,7 @@ describe('startServer (AC3)', () => {
     expect(address.port).toBeGreaterThan(0);
     const res = await rawRequest(address.port, { path: '/api/status' });
     expect(res.status).toBe(200);
-    expect(JSON.parse(res.body)).toEqual({ version: '1.2.3' });
+    expect(JSON.parse(res.body)).toEqual({ version: '1.2.3', redditAuth: false, fixtures: false });
   });
 
   it('rejects with EADDRINUSE when the port is taken', async () => {
@@ -117,7 +127,7 @@ describe('node server/main.ts', () => {
     expect(proc.stdout().trim()).toBe(`sellscout running at http://127.0.0.1:${port}`);
     const res = await fetch(`http://127.0.0.1:${port}/api/status`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ version: pkg.version });
+    expect(await res.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: false });
   }, 20_000);
 
   it('prints the port-in-use message and exits 1 (AC4)', async () => {
@@ -130,9 +140,119 @@ describe('node server/main.ts', () => {
     expect(proc.stdout()).toBe('');
   }, 20_000);
 
+  it('runs in fixture mode with SELLSCOUT_FIXTURES=1: keys ignored, notice printed (AC3, AC16)', async () => {
+    const port = await freePort();
+    const proc = spawnMain(String(port), {
+      SELLSCOUT_FIXTURES: '1',
+      REDDIT_CLIENT_ID: 'SENTINEL-ID-456',
+      REDDIT_CLIENT_SECRET: 'SENTINEL-SECRET-123',
+    });
+    await waitFor(() => proc.stdout().includes(`127.0.0.1:${port}`) || proc.child.exitCode !== null, 15_000);
+    expect(proc.stdout().trim().split(/\r?\n/)).toEqual([
+      FIXTURE_MODE_MESSAGE,
+      `sellscout running at http://127.0.0.1:${port}`,
+    ]);
+    expect(FIXTURE_MODE_MESSAGE).toBe('sellscout: fixture mode (canned Reddit data, outbound requests blocked)');
+    const status = await fetch(`http://127.0.0.1:${port}/api/status`);
+    expect(await status.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: true });
+    const res = await fetch(`http://127.0.0.1:${port}/api/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item: 'mechanical keyboard', window: 30 }),
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain('SENTINEL');
+    const body = JSON.parse(text) as { buyers: { term: string; windowDays: number } };
+    expect(body.buyers).toMatchObject({ term: 'mechanical keyboard', windowDays: 30 });
+    expect(proc.stderr()).not.toContain('SENTINEL');
+  }, 20_000);
+
   it('rejects a bad PORT and exits 1', async () => {
     const proc = spawnMain('not-a-port');
     expect(await proc.exit).toBe(1);
     expect(proc.stderr()).toContain('PORT must be a number between 1 and 65535');
   }, 20_000);
+});
+
+describe('loadDotEnv (AC17)', () => {
+  const path = '/repo/.env';
+
+  it.each([
+    // exists, SELLSCOUT_FIXTURES, NODE_ENV, loads
+    [true, undefined, undefined, true],
+    [true, undefined, 'development', true],
+    [true, undefined, 'production', true],
+    [true, '1', undefined, false],
+    [true, undefined, 'test', false],
+    [true, '1', 'test', false],
+    [false, undefined, undefined, false],
+    [false, '1', undefined, false],
+    [false, undefined, 'test', false],
+    [false, '1', 'test', false],
+    [true, '0', undefined, true],
+    [true, 'true', undefined, true],
+  ])('exists=%s SELLSCOUT_FIXTURES=%s NODE_ENV=%s loads=%s', (exists, fixtures, nodeEnv, expected) => {
+    const loaded: string[] = [];
+    const checked: string[] = [];
+    const result = loadDotEnv({
+      env: { SELLSCOUT_FIXTURES: fixtures, NODE_ENV: nodeEnv },
+      exists: (p) => {
+        checked.push(p);
+        return exists;
+      },
+      load: (p) => {
+        loaded.push(p);
+      },
+      path,
+    });
+    expect(result).toBe(expected);
+    expect(loaded).toEqual(expected ? [path] : []);
+    for (const p of checked) expect(p).toBe(path);
+  });
+
+  it('points at <repo root>/.env', () => {
+    expect(DOTENV_PATH).toBe(join(repoRoot, '.env'));
+  });
+});
+
+describe('prepareConfig (AC16, AC17: start-up order)', () => {
+  function run(env: Record<string, string | undefined>, dotenv: Record<string, string> | null) {
+    const calls: string[] = [];
+    const config = prepareConfig({
+      env,
+      path: '/repo/.env',
+      exists: () => dotenv !== null,
+      load: () => {
+        calls.push('load');
+        Object.assign(env, dotenv);
+      },
+      installGuard: () => calls.push('guard'),
+      log: (message) => calls.push(`log:${message}`),
+    });
+    return { config, calls };
+  }
+
+  it('installs the fetch guard and ignores keys in fixture mode', () => {
+    const { config, calls } = run({ SELLSCOUT_FIXTURES: '1', REDDIT_CLIENT_ID: 'id', REDDIT_CLIENT_SECRET: 'secret' }, {});
+    expect(config.fixtures).toBe(true);
+    expect(config.reddit.clientSecret).toBe('');
+    expect(calls).toEqual(['guard', `log:${FIXTURE_MODE_MESSAGE}`]);
+  });
+
+  it('a .env that sets SELLSCOUT_FIXTURES=1 does not turn fixture mode on, and its keys are read', () => {
+    const { config, calls } = run(
+      {},
+      { SELLSCOUT_FIXTURES: '1', REDDIT_CLIENT_ID: 'from-dotenv', REDDIT_CLIENT_SECRET: 'dotenv-secret' },
+    );
+    expect(config.fixtures).toBe(false);
+    expect(config.reddit.clientId).toBe('from-dotenv');
+    expect(calls).toEqual(['load']);
+  });
+
+  it('without fixture mode the guard is never installed', () => {
+    const { config, calls } = run({ SELLSCOUT_FIXTURES: '0' }, null);
+    expect(config.fixtures).toBe(false);
+    expect(calls).toEqual([]);
+  });
 });
