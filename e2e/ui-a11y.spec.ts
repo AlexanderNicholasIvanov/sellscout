@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { mockSearch } from './fixtures/mock.ts';
+import type { SettingKey, SettingsResponse, SettingState } from '../server/types.ts';
+import { mockSearch, mockSettings } from './fixtures/mock.ts';
 
 test.describe('accessibility', () => {
   test('AC24: every form control has an accessible name', async ({ page }) => {
@@ -22,6 +23,9 @@ test.describe('accessibility', () => {
     await page.goto('/');
 
     const item = page.getByLabel('What are you selling?');
+    // Run 5: the header's Settings button now comes first in the Tab order.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused();
     // Tab from the top of the page to the item field.
     await page.keyboard.press('Tab');
     await expect(item).toBeFocused();
@@ -62,6 +66,9 @@ test.describe('accessibility', () => {
     await mockSearch(page, 'mechanical-keyboard');
     await page.goto('/');
 
+    // Run 5: the header's Settings button now comes first in the Tab order.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused();
     await page.keyboard.press('Tab');
     const item = page.getByLabel('What are you selling?');
     await expect(item).toBeFocused();
@@ -93,6 +100,9 @@ test.describe('accessibility: people looking for it', () => {
     const { calls } = await mockSearch(page, 'buyers-ok');
     await page.goto('/');
 
+    // Run 5: the header's Settings button now comes first in the Tab order.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByLabel('What are you selling?')).toBeFocused();
     await page.keyboard.type('mechanical keyboard');
@@ -149,6 +159,9 @@ test.describe('accessibility: similar listings on eBay', () => {
     const { calls } = await mockSearch(page, 'ebay-ok');
     await page.goto('/');
 
+    // Run 5: the header's Settings button now comes first in the Tab order.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByLabel('What are you selling?')).toBeFocused();
     await page.keyboard.type('mechanical keyboard');
@@ -202,6 +215,9 @@ test.describe('accessibility: saved searches', () => {
       return check();
     }
 
+    // Run 5: the header's Settings button now comes first in the Tab order.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByLabel('What are you selling?')).toBeFocused();
     await page.keyboard.type('mechanical keyboard');
@@ -247,6 +263,9 @@ test.describe('accessibility: Claude picks', () => {
     const { calls } = await mockSearch(page, 'claude-keyboard');
     await page.goto('/');
 
+    // Run 5: the header's Settings button now comes first in the Tab order.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByLabel('What are you selling?')).toBeFocused();
     await page.keyboard.type('mechanical keyboard');
@@ -270,5 +289,95 @@ test.describe('accessibility: Claude picks', () => {
     await expect(link).toHaveText('Open board');
     await expect(link).toHaveAttribute('href', 'https://www.reddit.com/r/MechanicalKeyboards/');
     expect(await link.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+  });
+});
+
+test.describe('accessibility: Settings', () => {
+  const settingsWith = (source: SettingState['source']): SettingsResponse => {
+    const state = (key: SettingKey, value: string): SettingState =>
+      key === 'SELLSCOUT_CLAUDE_MODEL' || key === 'REDDIT_USERNAME'
+        ? source === 'none'
+          ? { source, secret: false }
+          : { source, secret: false, value }
+        : { source, secret: true };
+    return {
+      editable: true,
+      file: '/tmp/sellscout-e2e/settings.json',
+      settings: {
+        ANTHROPIC_API_KEY: state('ANTHROPIC_API_KEY', ''),
+        SELLSCOUT_CLAUDE_MODEL: state('SELLSCOUT_CLAUDE_MODEL', 'claude-test-model'),
+        EBAY_CLIENT_ID: state('EBAY_CLIENT_ID', ''),
+        EBAY_CLIENT_SECRET: state('EBAY_CLIENT_SECRET', ''),
+        REDDIT_CLIENT_ID: state('REDDIT_CLIENT_ID', ''),
+        REDDIT_CLIENT_SECRET: state('REDDIT_CLIENT_SECRET', ''),
+        REDDIT_USERNAME: state('REDDIT_USERNAME', 'someone'),
+      },
+    };
+  };
+
+  test('AC10: keyboard only - open Settings, fill every field, save, and Escape returns focus', async ({ page }) => {
+    await mockSearch(page, 'mechanical-keyboard');
+    const settings = await mockSettings(page, (route, request) =>
+      route.fulfill({ status: 200, json: settingsWith(request.method() === 'PUT' ? 'settings' : 'none') }),
+    );
+    await page.goto('/');
+
+    // Tab reaches the Settings button first; Enter opens the panel and focus moves to its heading.
+    await page.keyboard.press('Tab');
+    const button = page.getByRole('button', { name: 'Settings', exact: true });
+    await expect(button).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(button).toHaveAttribute('aria-expanded', 'true');
+    const panel = page.locator('section#settings-panel');
+    await expect(panel.getByRole('heading', { name: 'Settings' })).toBeFocused();
+    await expect(panel.getByLabel('Anthropic API key', { exact: true })).toBeVisible();
+
+    // Close comes first, then every field in order; each one takes typed text.
+    await page.keyboard.press('Tab');
+    await expect(panel.getByRole('button', { name: 'Close' })).toBeFocused();
+    const fields: [string, string][] = [
+      ['Anthropic API key', 'SENTINEL-SECRET-123'],
+      ['Claude model', 'claude-test-model'],
+      ['eBay App ID (Client ID)', 'SENTINEL-EBAY-ID'],
+      ['eBay Cert ID (Client Secret)', 'SENTINEL-EBAY-SECRET'],
+      ['Reddit client ID', 'SENTINEL-REDDIT-ID'],
+      ['Reddit client secret', 'SENTINEL-REDDIT-SECRET'],
+      ['Reddit username', 'someone'],
+    ];
+    for (const [label, value] of fields) {
+      await page.keyboard.press('Tab');
+      const input = panel.getByLabel(label, { exact: true });
+      await expect(input).toBeFocused();
+      expect(await input.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+      await page.keyboard.type(value);
+      await expect(input).toHaveValue(value);
+    }
+
+    // Tab to "Save settings"; Enter saves.
+    await page.keyboard.press('Tab');
+    const save = panel.getByRole('button', { name: 'Save settings' });
+    await expect(save).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(panel.getByRole('status')).toHaveText('Saved. New searches use these keys.');
+    expect(settings.puts).toEqual([
+      {
+        values: {
+          ANTHROPIC_API_KEY: 'SENTINEL-SECRET-123',
+          SELLSCOUT_CLAUDE_MODEL: 'claude-test-model',
+          EBAY_CLIENT_ID: 'SENTINEL-EBAY-ID',
+          EBAY_CLIENT_SECRET: 'SENTINEL-EBAY-SECRET',
+          REDDIT_CLIENT_ID: 'SENTINEL-REDDIT-ID',
+          REDDIT_CLIENT_SECRET: 'SENTINEL-REDDIT-SECRET',
+          REDDIT_USERNAME: 'someone',
+        },
+      },
+    ]);
+    await expect(panel.getByLabel('Anthropic API key', { exact: true })).toHaveValue('');
+
+    // Escape inside the panel closes it and puts focus back on the Settings button.
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await expect(button).toBeFocused();
+    await expect(button).toHaveAttribute('aria-expanded', 'false');
   });
 });

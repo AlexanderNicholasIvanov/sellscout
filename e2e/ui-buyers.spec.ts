@@ -34,7 +34,7 @@ test.describe('people looking for it', () => {
       'Searched Reddit for "mechanical keyboard" (last 30 days)',
     );
     await expect(buyers.getByText(/^Add Reddit app keys/)).toHaveText(
-      "Add Reddit app keys to see live posts here. See the README's Reddit section.",
+      "Add Reddit app keys in Settings to see live posts here. See the README's Reddit section.",
     );
     await expect(buyers.getByRole('link', { name: "README's Reddit section" })).toHaveAttribute(
       'href',
