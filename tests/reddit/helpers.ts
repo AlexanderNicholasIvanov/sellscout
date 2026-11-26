@@ -45,6 +45,7 @@ export function config(overrides: Partial<AppConfig['reddit']> & { fixtures?: bo
     fixtureDelayMs,
     reddit: { clientId: CLIENT_ID, clientSecret: SECRET, username: 'tester', ...reddit },
     ebay: { clientId: '', clientSecret: '' },
+    claude: { apiKey: '', model: 'claude-opus-5-5' },
   };
 }
 

@@ -24,7 +24,7 @@ describe('GET /api/status (AC5)', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('application/json; charset=utf-8');
     expect(res.headers.get('cache-control')).toBe('no-store');
-    expect(await res.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: false, ebay: false });
+    expect(await res.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: false, ebay: false, claude: false });
   });
 
   it('accepts localhost:<port> as Host', async () => {
@@ -144,10 +144,11 @@ describe('POST /api/search happy path', () => {
 
 describe('GET /api/status with injected status (run 2a AC3)', () => {
   it.each([
-    [{ redditAuth: true, fixtures: false, ebay: false }],
-    [{ redditAuth: false, fixtures: true, ebay: false }],
-    [{ redditAuth: false, fixtures: false, ebay: false }],
-    [{ redditAuth: false, fixtures: false, ebay: true }],
+    [{ redditAuth: true, fixtures: false, ebay: false, claude: false }],
+    [{ redditAuth: false, fixtures: true, ebay: false, claude: false }],
+    [{ redditAuth: false, fixtures: false, ebay: false, claude: false }],
+    [{ redditAuth: false, fixtures: false, ebay: true, claude: false }],
+    [{ redditAuth: false, fixtures: false, ebay: false, claude: true }],
   ])('reports %j', async (status) => {
     app = await listenApp({ version: '9.9.9', status });
     const res = await rawRequest(app.port, { path: '/api/status' });
@@ -162,6 +163,7 @@ describe('GET /api/status with injected status (run 2a AC3)', () => {
       redditAuth: false,
       fixtures: false,
       ebay: false,
+      claude: false,
     });
   });
 });
@@ -192,7 +194,7 @@ describe('secrets never reach a response or the console (run 2a AC18)', () => {
     const { port } = server.address() as AddressInfo;
 
     const status = await rawRequest(port, { path: '/api/status' });
-    expect(json(status)).toEqual({ version: '1.2.3', redditAuth: true, fixtures: false, ebay: false });
+    expect(json(status)).toEqual({ version: '1.2.3', redditAuth: true, fixtures: false, ebay: false, claude: false });
 
     const search = await postSearch(port, { item: 'RTX 3080', location: 'Seattle', delivery: 'both', window: 30 });
     expect(search.status).toBe(200);

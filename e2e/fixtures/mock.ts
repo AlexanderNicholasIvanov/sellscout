@@ -17,7 +17,9 @@ export type FixtureName =
   | 'ebay-no-range'
   | 'ebay-none'
   | 'ebay-unavailable'
-  | 'ebay-disabled';
+  | 'ebay-disabled'
+  | 'claude-keyboard'
+  | 'claude-fallback';
 
 function isBuyersResult(b: BuyersResult | undefined): boolean {
   return (
@@ -74,7 +76,7 @@ function assertSearchResult(name: string, value: unknown): asserts value is Sear
   const ok =
     typeof v === 'object' &&
     v !== null &&
-    v.plan?.source === 'catalog' &&
+    (v.plan?.source === 'catalog' || v.plan?.source === 'claude') &&
     Array.isArray(v.plan.categories) &&
     typeof v.plan.searchTerm === 'string' &&
     isBuyersResult(v.buyers) &&
@@ -92,7 +94,8 @@ function assertSearchResult(name: string, value: unknown): asserts value is Sear
         typeof venue.local === 'boolean' &&
         Array.isArray(venue.tips) &&
         Array.isArray(venue.why) &&
-        Array.isArray(venue.categoryIds),
+        Array.isArray(venue.categoryIds) &&
+        (venue.aiSuggested === undefined || venue.aiSuggested === true),
     );
   if (!ok) throw new Error(`Fixture ${name}.json is not shaped like SearchResult`);
 }
@@ -151,15 +154,15 @@ export async function mockSearch(
 }
 
 /** Intercepts GET /api/status with the given status body, or with a bare HTTP status code. */
-/** `ebay` defaults to false, so run-2 callers keep working. */
+/** `ebay` and `claude` default to false, so run-2 and run-3 callers keep working. */
 export async function mockStatus(
   page: Page,
-  respond: (Omit<StatusResponse, 'version' | 'ebay'> & { ebay?: boolean }) | number,
+  respond: (Omit<StatusResponse, 'version' | 'ebay' | 'claude'> & { ebay?: boolean; claude?: boolean }) | number,
 ): Promise<void> {
   await page.route('**/api/status', (route) =>
     typeof respond === 'number'
       ? route.fulfill({ status: respond, json: { error: 'Internal error' } })
-      : route.fulfill({ status: 200, json: { version: '0.1.0', ebay: false, ...respond } }),
+      : route.fulfill({ status: 200, json: { version: '0.1.0', ebay: false, claude: false, ...respond } }),
   );
 }
 

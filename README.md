@@ -7,12 +7,16 @@ classifieds for your city. Each entry shows why it fits, its fees, posting tips 
 It also shows **People looking for it**: recent Reddit posts from people who want to buy the
 item ("WTB", "ISO", "looking for"), plus ready-made links to search Reddit and Craigslist
 yourself. **Similar listings on eBay** shows active fixed-price eBay listings for the item and
-the range of their asking prices, so you know what to ask.
+the range of their asking prices, so you know what to ask. With your own Anthropic API key,
+[Claude](#claude-optional) reads the item, picks the catalog categories and the search term,
+and suggests a few more subreddits.
 
-It runs on your own machine. Without Reddit or eBay app keys nothing leaves it: no accounts and
-no calls to other sites. With Reddit keys, Reddit receives the search term, the matched catalog
+It runs on your own machine. Without Reddit, eBay or Anthropic keys nothing leaves it: no
+accounts and no calls to other sites. With Reddit keys, Reddit receives the search term, the matched catalog
 subreddit names and a User-Agent naming sellscout (and your Reddit username, if you set one);
 see [Reddit](#reddit). With eBay keys, eBay receives the search term only; see [eBay](#ebay).
+With an Anthropic key, Claude receives the item text and the catalog's category list; see
+[Claude](#claude-optional).
 
 ## Setup
 
@@ -39,13 +43,15 @@ server on 5173, which proxies `/api` to the API. Ctrl+C stops both.
 
 `npm start` and `npm run dev` load `.env` from the repo root when it exists (copy
 `.env.example`). It holds the optional [Reddit](#reddit) keys (`REDDIT_CLIENT_ID`,
-`REDDIT_CLIENT_SECRET`, `REDDIT_USERNAME`) and [eBay](#ebay) keys (`EBAY_CLIENT_ID`,
-`EBAY_CLIENT_SECRET`).
+`REDDIT_CLIENT_SECRET`, `REDDIT_USERNAME`), [eBay](#ebay) keys (`EBAY_CLIENT_ID`,
+`EBAY_CLIENT_SECRET`) and the [Claude](#claude-optional) key (`ANTHROPIC_API_KEY`, plus the
+optional `SELLSCOUT_CLAUDE_MODEL`).
 
 ### Fixture mode
 
-Fixture mode serves canned Reddit posts and eBay listings and blocks every outbound request. It
-is for demos and the e2e tests, and needs no keys:
+Fixture mode serves canned Reddit posts and eBay listings, answers Claude requests from an
+in-repo stand-in and blocks every outbound request. It is for demos and the e2e tests, and
+needs no keys:
 
 ```sh
 SELLSCOUT_FIXTURES=1 npm start
@@ -55,9 +61,9 @@ SELLSCOUT_FIXTURES=1 SELLSCOUT_FIXTURE_DELAY_MS=1500 npm start   # slow answers
 In PowerShell: `$env:SELLSCOUT_FIXTURES=1; npm start`.
 
 - Set these variables in the shell. In `.env` they have no effect.
-- In fixture mode `.env` is not loaded, any Reddit and eBay keys are ignored and every
-  outbound `fetch` fails with "Outbound request blocked in fixture mode".
-- The header shows "Reddit: fixture", "eBay: fixture" and "Fixture data".
+- In fixture mode `.env` is not loaded, any Reddit, eBay and Anthropic keys are ignored and
+  every outbound `fetch` fails with "Outbound request blocked in fixture mode".
+- The header shows "Reddit: fixture", "eBay: fixture", "Claude: fixture" and "Fixture data".
 - Try "mechanical keyboard", "RTX 3080" or "Sony A7 III".
 - The items `reddit-403`, `reddit-429`, `reddit-html` and `reddit-timeout` show those failures.
 - eBay fixture terms: an item containing "mechanical keyboard" gets 6 eBay listings and a price
@@ -65,6 +71,12 @@ In PowerShell: `$env:SELLSCOUT_FIXTURES=1; npm start`.
   gets 2 listings and no range; anything else gets none. Items containing `ebay-401`,
   `ebay-403`, `ebay-429`, `ebay-500`, `ebay-timeout` or `ebay-html` (for example
   "ebay-429 widget") show those eBay failures.
+- Claude fixture terms: every search is planned by the stand-in, so the "Understood as" line
+  ends "via Claude". An item containing "mechanical keyboard" also gets the AI-suggested
+  r/MechanicalKeyboards. Items containing `claude-timeout`, `claude-offline`, `claude-401`,
+  `claude-429`, `claude-500`, `claude-refusal`, `claude-max-tokens` or `claude-invalid` show
+  those Claude failures: the built-in catalog result, "via built-in catalog" and the Claude
+  notice.
 - `SELLSCOUT_FIXTURE_DELAY_MS` (a whole number of milliseconds, default 0) delays each canned
   answer.
 - `POST /api/__fixtures` exists only in fixture mode (anywhere else it is a 404). The e2e tests
@@ -81,9 +93,10 @@ The UI is a single page:
 4. Choose how far back to look for buyer posts: 7, 30 (the default) or 90 days.
 5. Press **Search**.
 
-Results show any notices first, then what the item was understood as, then the ranked boards
-under **Where to post it**. Each board lists why it fits, its fees, collapsible posting tips
-and links that open in a new tab.
+Results show any notices first, then what the item was understood as ("via Claude" or "via
+built-in catalog"), then the ranked boards under **Where to post it**. Each board lists why it
+fits, its fees, collapsible posting tips and links that open in a new tab. A subreddit Claude
+suggested that is not in the catalog has an **AI suggested** badge and only its board link.
 
 **People looking for it** comes next. It shows the Reddit search term and, with Reddit keys,
 the matching posts: title, subreddit, author, age, score, comments and the start of the text.
@@ -101,7 +114,7 @@ With eBay keys, the listings' main eBay category is also added to **Where to pos
 "eBay - <category>", right after eBay (not with **Local pickup**). Without keys the section says
 how to add them. Its **Search eBay yourself** link works with or without keys.
 
-Header chips show whether Reddit and eBay are on.
+Header chips show whether Reddit, eBay and Claude are on.
 
 **Saved searches**
 - **Save search**, right after the "Understood as" line, saves the search behind the shown
@@ -134,8 +147,8 @@ to `main`. No test makes a real network call:
   `e2e/fixtures/`.
 - `e2e/live.spec.ts` uses the real server and catalog.
 - Both block every request that isn't to `127.0.0.1:5181`.
-- The Playwright server runs in [fixture mode](#fixture-mode), and the Reddit and eBay unit
-  tests use a fake `fetch`.
+- The Playwright server runs in [fixture mode](#fixture-mode), and the Reddit, eBay and Claude
+  unit tests use a fake `fetch`.
 
 ## Editing the catalog and metros
 
@@ -194,7 +207,8 @@ an issue.
 - The search term, plus the names of the matched catalog subreddits and a User-Agent with
   your platform, the sellscout version and `REDDIT_USERNAME` if set. The term is the item text up to the first `,` `;` `(` `|` or ` - `, without
   filler words such as "the", "used" or "mint", and at most 6 words. "Sony A7 III body, low
-  shutter count" becomes "Sony A7 III".
+  shutter count" becomes "Sony A7 III". With [Claude](#claude-optional) on, Claude picks the
+  term instead.
 - One site-wide search for `(WTB OR ISO OR "looking for") <term>`, plus one in each of the
   item's top catalog subreddits (up to 3), such as r/hardwareswap for "RTX 3080".
 - Your location is never sent to Reddit. It is used only for the Craigslist link.
@@ -259,6 +273,54 @@ and delivery choice are never sent to eBay.
 - When eBay fails, the section says why (for example "eBay search unavailable: eBay rate limit
   reached (HTTP 429)"), and the boards and buyer posts still show.
 
+## Claude (optional)
+
+Without a key, sellscout matches the item against the built-in catalog's keywords. With your
+own Anthropic API key, Claude reads the item and:
+- picks the catalog categories that fit, in order, so the specialist boards are ranked by its
+  picks, including items the catalog has no keyword for;
+- picks one search term, used for both the Reddit buyer search and the eBay search;
+- suggests up to 5 more subreddits. They are listed under **Where to post it** with an
+  **AI suggested** badge and a link to the board; they are not searched for buyers.
+
+The "Understood as" line then ends "via Claude", and the header shows "Claude: on".
+
+**Getting a key**
+1. Create an API key at <https://console.anthropic.com>.
+2. Put it in `.env` in the repo root (see `.env.example`), then restart sellscout:
+
+```sh
+ANTHROPIC_API_KEY=<your key>
+SELLSCOUT_CLAUDE_MODEL=<optional; the default is claude-opus-5-5>
+```
+
+Only an API key in `ANTHROPIC_API_KEY` turns Claude on: a Claude subscription, an
+`ant auth login` profile or `ANTHROPIC_AUTH_TOKEN` does not. `.env` is git-ignored: never
+commit it or paste the key into an issue.
+
+**Model.** `SELLSCOUT_CLAUDE_MODEL` overrides the default `claude-opus-5-5`. The model must
+support structured outputs and the `effort` setting; one that doesn't gets an HTTP 400, and
+sellscout falls back to the catalog with the notice below. sellscout opts in to Anthropic's
+server-side fallback: if the model declines a request on policy grounds, Anthropic may answer it
+with its recommended substitute model in the same request.
+
+**Cost.** One request per search, billed to your key. sellscout asks for low effort and a small
+JSON answer, so a search costs little, but it is not free.
+
+**When Claude fails.** If the request times out (after 30 s), the key is rejected, the rate
+limit is hit, Anthropic returns an error, or the answer is cut off, declined or unusable,
+sellscout uses the built-in catalog for that search and shows one notice, for example "Claude
+couldn't help with this search (rate limited); used the built-in catalog." sellscout never
+retries a request itself; "declined" means the substitute model declined too.
+
+**What Claude receives:** the item text, a fixed instruction and the catalog's category list
+(names and a few keywords each), never the location, the delivery choice, the buyer window,
+saved searches or your Reddit and eBay keys. Your Anthropic key goes only in the request's
+`Authorization` header, with the SDK's version and platform headers (OS, architecture, Node
+version). Requests always go to `https://api.anthropic.com`: `ANTHROPIC_BASE_URL` is ignored.
+
+In [fixture mode](#fixture-mode) Claude is never called; see the Claude fixture terms there.
+
 ## Privacy
 
 - Everything runs locally and the server listens on 127.0.0.1 only. It rejects requests whose
@@ -269,7 +331,11 @@ and delivery choice are never sent to eBay.
   else; it only picks local boards and the Craigslist link.
 - The same search term is sent to eBay's API only when eBay keys are set. eBay receives the
   search term only: never the location or the delivery choice.
-- Reddit and eBay keys, and the eBay access token, stay in `.env` and in the server's memory.
+- With an Anthropic key, Claude receives the item text and the catalog's category list,
+  never the location, saved searches or your Reddit and eBay keys. Without the key nothing is
+  sent to Anthropic.
+- Reddit, eBay and Anthropic keys, and the eBay access token, stay in `.env` and in the
+  server's memory.
   They are never logged or sent to the browser.
 - Your last location is kept only in this browser's localStorage (`sellscout.location.v1`) and
   prefilled next time. Clearing the site data removes it.
@@ -289,6 +355,6 @@ sellscout is being built in steps, each its own pull request:
      and status chips (done).
    - 2b. Saved searches, with "New" badges on posts you haven't seen yet (done).
 3. **Similar listings on eBay.** Active listings and a typical asking-price range (optional free
-   eBay developer key) (done, this version).
+   eBay developer key) (done).
 4. **Smarter matching with Claude.** With your own `ANTHROPIC_API_KEY`, Claude picks boards and
-   search terms. Without a key, the built-in catalog still works.
+   the search term. Without a key, the built-in catalog still works (done, this version).

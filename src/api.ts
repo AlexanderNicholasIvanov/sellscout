@@ -9,8 +9,10 @@ import type {
   FallbackLink,
   PriceRange,
   SearchInput,
+  SearchPlan,
   SearchResult,
   StatusResponse,
+  Venue,
 } from '../server/types.ts';
 
 export const BUYER_WINDOWS: readonly BuyerWindow[] = [7, 30, 90];
@@ -113,15 +115,52 @@ function isEbayResult(value: unknown): value is EbayResult {
   );
 }
 
+const PLAN_SOURCES: readonly string[] = ['claude', 'catalog'];
+
+function isSearchPlan(value: unknown): value is SearchPlan {
+  return (
+    isObject(value) &&
+    typeof value.source === 'string' &&
+    PLAN_SOURCES.includes(value.source) &&
+    Array.isArray(value.categories) &&
+    typeof value.searchTerm === 'string'
+  );
+}
+
+const VENUE_KINDS: readonly string[] = ['marketplace', 'subreddit', 'forum', 'facebook', 'local-classifieds'];
+
+const isStrings = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+
+const isOptionalString = (value: unknown): boolean => value === undefined || typeof value === 'string';
+
+/** Every field the venue row reads; `aiSuggested` is either absent or exactly `true`. */
+function isVenue(value: unknown): value is Venue {
+  return (
+    isObject(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.kind === 'string' &&
+    VENUE_KINDS.includes(value.kind) &&
+    typeof value.url === 'string' &&
+    isOptionalString(value.searchUrl) &&
+    isOptionalString(value.feeNote) &&
+    typeof value.ships === 'boolean' &&
+    typeof value.local === 'boolean' &&
+    isStrings(value.tips) &&
+    isStrings(value.why) &&
+    isStrings(value.categoryIds) &&
+    (value.aiSuggested === undefined || value.aiSuggested === true)
+  );
+}
+
 export function isSearchResult(value: unknown): value is SearchResult {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Partial<SearchResult>;
   return (
-    typeof v.plan === 'object' &&
-    v.plan !== null &&
-    Array.isArray(v.plan.categories) &&
-    typeof v.plan.searchTerm === 'string' &&
+    isSearchPlan(v.plan) &&
     Array.isArray(v.venues) &&
+    v.venues.every(isVenue) &&
     isBuyersResult(v.buyers) &&
     isEbayResult(v.ebay) &&
     Array.isArray(v.notices)
@@ -170,24 +209,29 @@ export async function search(input: SearchInput, signal?: AbortSignal): Promise<
   return body;
 }
 
-function isStatusResponse(value: unknown): value is StatusResponse {
+/** A status body; `claude` may be missing (a server older than run 4) but not another type. */
+function isStatusResponse(value: unknown): value is Omit<StatusResponse, 'claude'> & { claude?: boolean } {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Partial<StatusResponse>;
   return (
     typeof v.version === 'string' &&
     typeof v.redditAuth === 'boolean' &&
     typeof v.fixtures === 'boolean' &&
-    typeof v.ebay === 'boolean'
+    typeof v.ebay === 'boolean' &&
+    (v.claude === undefined || typeof v.claude === 'boolean')
   );
 }
 
-/** GETs /api/status. Resolves to null on any failure or a malformed body; never throws. */
+/**
+ * GETs /api/status. Resolves to null on any failure or a malformed body; never throws. A body
+ * without `claude` reads as `claude: false`.
+ */
 export async function status(signal?: AbortSignal): Promise<StatusResponse | null> {
   try {
     const res = await fetch('/api/status', { signal });
     if (!res.ok) return null;
     const body: unknown = await res.json();
-    return isStatusResponse(body) ? body : null;
+    return isStatusResponse(body) ? { ...body, claude: body.claude === true } : null;
   } catch {
     return null;
   }

@@ -44,9 +44,12 @@ export interface Venue {
   tips: string[];
   why: string[];
   categoryIds: string[];
+  /** A subreddit Claude suggested that is not in the catalog: a plain board link, never searched. */
+  aiSuggested?: true;
 }
 
-export interface SearchPlan { source: 'catalog'; categories: { id: string; name: string }[]; searchTerm: string }
+/** `claude` when Claude picked the categories (ANTHROPIC_API_KEY set or fixture mode), else `catalog`. */
+export interface SearchPlan { source: 'claude' | 'catalog'; categories: { id: string; name: string }[]; searchTerm: string }
 
 export interface BuyerPost {
   id: string; title: string; subreddit: string; author: string;
@@ -86,9 +89,13 @@ export type SearchFn = (input: SearchInput) => Promise<SearchResult>;
 /** What the venue search hands the buyer search; never sent to the browser. */
 export interface BuyerContext { subreddits: string[]; craigslist?: string }
 export type VenueSearchResult = Omit<SearchResult, 'buyers' | 'ebay'> & { context: BuyerContext };
-export type VenueSearchFn = (input: SearchInput) => VenueSearchResult;
+/** `picks`: Claude's validated answer (server/claude ClaudePicks); unset = catalog keyword matching. */
+export type VenueSearchFn = (
+  input: SearchInput,
+  picks?: { categoryIds: string[]; searchTerm: string; subreddits: string[] },
+) => VenueSearchResult;
 
-export interface StatusResponse { version: string; redditAuth: boolean; fixtures: boolean; ebay: boolean }
+export interface StatusResponse { version: string; redditAuth: boolean; fixtures: boolean; ebay: boolean; claude: boolean }
 export interface ErrorResponse { error: string }
 /** POST /api/__fixtures (fixture mode only): the fixture post count after the change. */
 export interface FixturesResponse { ok: true; posts: number }

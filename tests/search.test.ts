@@ -9,6 +9,24 @@ import { searchVenues } from '../server/venues/index.ts';
 import { disabledEbay } from './ebay/helpers.ts';
 import { json, listenApp, postSearch } from './server/helpers.ts';
 import type { TestApp } from './server/helpers.ts';
+import { readConfig } from '../server/config.ts';
+import { catalog } from '../server/data/catalog.ts';
+import { createPlanner } from '../server/claude/planner.ts';
+import type { ClaudePicks, Planner } from '../server/claude/types.ts';
+import type { EbayQuery } from '../server/ebay/index.ts';
+import { createBuyerSearch } from '../server/reddit/index.ts';
+import {
+  CLAUDE_KEY,
+  errorBody,
+  hangUntilAborted,
+  jsonResponse,
+  messageBody,
+  recordingFetch,
+  sdkClient,
+  spyConsole,
+  textBlock,
+} from './claude/helpers.ts';
+import type { Answer } from './claude/helpers.ts';
 
 const okBuyers = (query: BuyerQuery): BuyersResult => ({
   status: 'ok',
@@ -306,5 +324,211 @@ describe('a failing eBay search (run 3 AC10)', () => {
     expect(result.buyers.reason).toBe('Reddit search failed unexpectedly');
     expect(result.ebay.reason).toBe('eBay search failed unexpectedly');
     expect(result.venues.length).toBeGreaterThan(0);
+  });
+});
+
+// Run 4: the Claude plan comes first, its picks steer the venues and its term both searches; any
+// failure gives the catalog result plus one notice.
+const PICKS: ClaudePicks = { categoryIds: ['keyboards'], searchTerm: 'Keychron Q1', subreddits: ['MechanicalKeyboards'] };
+const okPlanner = (picks: ClaudePicks = PICKS): Planner => async () => ({ ok: true, picks });
+
+function recordingEbay(): { fn: EbaySearchFn; calls: EbayQuery[] } {
+  const calls: EbayQuery[] = [];
+  return {
+    fn: async (query) => {
+      calls.push(query);
+      return okEbay(query.term ?? buyerTerm(query.item));
+    },
+    calls,
+  };
+}
+
+describe('with Claude picks (run 4 AC7, AC8)', () => {
+  const input: SearchInput = { item: 'my clicky board', location: 'Seattle', delivery: 'both', window: 30 };
+
+  it('the venues use the picks, and Reddit and eBay receive picks.searchTerm', async () => {
+    const buyers = recordingBuyers();
+    const ebay = recordingEbay();
+    const search = createSearchService({ venues: searchVenues, buyers: buyers.fn, ebay: ebay.fn, planner: okPlanner() });
+    const result = await search(input);
+
+    const venueResult = searchVenues(input, PICKS);
+    expect(result.plan).toEqual(venueResult.plan);
+    expect(result.plan.source).toBe('claude');
+    expect(result.plan.searchTerm).toBe('my clicky board');
+    expect(result.venues).toEqual(venueResult.venues);
+    expect(result.venues.map((v) => v.id).slice(0, 2)).toEqual(['r-mechmarket', 'ai-r-mechanicalkeyboards']);
+    expect(buyers.calls).toEqual([{ item: input.item, windowDays: 30, delivery: 'both', context: venueResult.context, term: 'Keychron Q1' }]);
+    expect(ebay.calls).toEqual([{ item: input.item, delivery: 'both', term: 'Keychron Q1' }]);
+    expect(result.ebay.term).toBe('Keychron Q1');
+    expect(result.notices).toEqual([]);
+  });
+
+  it('the real Reddit and eBay searches report the Claude term (disabled: links only)', async () => {
+    const search = createSearchService({
+      venues: searchVenues,
+      buyers: createBuyerSearch({ config: readConfig({}), version: '1.2.3', fetch: vi.fn<typeof globalThis.fetch>() }),
+      ebay: disabledEbay(),
+      planner: okPlanner(),
+    });
+    const result = await search(input);
+    expect(result.buyers.term).toBe('Keychron Q1');
+    expect(result.buyers.links[0]?.url).toContain('Keychron%20Q1');
+    expect(result.ebay).toEqual({
+      status: 'disabled',
+      term: 'Keychron Q1',
+      listings: [],
+      searchUrl: 'https://www.ebay.com/sch/i.html?_nkw=Keychron%20Q1',
+    });
+  });
+
+  it('without a planner Reddit and eBay get no term (buyerTerm(item) as before) and the plan is the catalog one', async () => {
+    const buyers = recordingBuyers();
+    const ebay = recordingEbay();
+    const result = await createSearchService({ venues: searchVenues, buyers: buyers.fn, ebay: ebay.fn })(input);
+    expect(buyers.calls[0]).not.toHaveProperty('term');
+    expect(ebay.calls).toEqual([{ item: input.item, delivery: 'both' }]);
+    expect(result.ebay.term).toBe(buyerTerm(input.item));
+    expect(result.plan.source).toBe('catalog');
+    expect(result.notices).toEqual(searchVenues(input).notices);
+  });
+
+  it('a failing buyer or eBay search falls back to the Claude term', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const search = createSearchService({
+      venues: searchVenues,
+      buyers: async () => {
+        throw new Error('buyers down');
+      },
+      ebay: async () => {
+        throw new Error('ebay down');
+      },
+      planner: okPlanner(),
+    });
+    const result = await search(input);
+    expect(result.buyers.term).toBe('Keychron Q1');
+    expect(result.buyers.links[0]?.url).toContain('Keychron%20Q1');
+    expect(result.ebay).toMatchObject({ term: 'Keychron Q1', searchUrl: 'https://www.ebay.com/sch/i.html?_nkw=Keychron%20Q1' });
+  });
+
+  it('plans first: nothing else starts until the plan is done, then Reddit and eBay run together', async () => {
+    const events: string[] = [];
+    const planDone = deferred<void>();
+    const planner: Planner = async () => {
+      events.push('plan:start');
+      await planDone.promise;
+      events.push('plan:end');
+      return { ok: true, picks: PICKS };
+    };
+    const search = createSearchService({
+      venues: (venueInput, picks) => {
+        events.push(`venues:${picks ? 'picks' : 'none'}`);
+        return searchVenues(venueInput, picks);
+      },
+      buyers: async (query) => {
+        events.push('buyers:start');
+        return { buyers: okBuyers(query), notices: [] };
+      },
+      ebay: async (query) => {
+        events.push('ebay:start');
+        return okEbay(query.term ?? '');
+      },
+      planner,
+    });
+    const pending = search(input);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events).toEqual(['plan:start']);
+    planDone.resolve();
+    await pending;
+    expect(events).toEqual(['plan:start', 'plan:end', 'venues:picks', 'buyers:start', 'ebay:start']);
+  });
+});
+
+describe('a failing Claude plan (run 4 AC9)', () => {
+  const input: SearchInput = { item: 'private item text keyboard', location: 'Seattle', delivery: 'both', window: 30 };
+  const notice = (reason: string) => `Claude couldn't help with this search (${reason}); used the built-in catalog.`;
+
+  /** The same search with Claude off: what every failure must return, plus the notice. */
+  const offResult = () => createSearchService({ venues: searchVenues, buyers: recordingBuyers().fn, ebay: disabledEbay() })(input);
+
+  const rows: [string, Answer, string][] = [
+    ['timeout', hangUntilAborted, 'timed out'],
+    ['network failure', () => Promise.reject(new TypeError('fetch failed')), "couldn't reach Anthropic"],
+    ['401', () => jsonResponse(errorBody('authentication_error'), 401), 'API key rejected'],
+    ['403', () => jsonResponse(errorBody('permission_error'), 403), 'API key rejected'],
+    ['429', () => jsonResponse(errorBody('rate_limit_error'), 429), 'rate limited'],
+    ['500', () => jsonResponse(errorBody('api_error'), 500), 'Anthropic returned HTTP 500'],
+    ['400', () => jsonResponse(errorBody('invalid_request_error'), 400), 'Anthropic returned HTTP 400'],
+    ['refusal', () => jsonResponse(messageBody([], 'refusal')), 'declined'],
+    ['max_tokens', () => jsonResponse(messageBody([textBlock('{"cat')], 'max_tokens')), 'answer cut off'],
+    ['no text block', () => jsonResponse(messageBody([])), 'unusable answer'],
+    ['bad JSON', () => jsonResponse(messageBody([textBlock('nope')])), 'unusable answer'],
+    ['invalid shape', () => jsonResponse(messageBody([textBlock('{"categoryIds":"keyboards"}')])), 'unusable answer'],
+  ];
+
+  it.each(rows)('%s -> the catalog result plus "%s"; no key or item leaks', async (_label, answer, reason) => {
+    const log = spyConsole();
+    const { fetch } = recordingFetch(answer);
+    const planner = createPlanner({ client: sdkClient(fetch, { timeout: 50 }), model: 'claude-opus-5-5', catalog });
+    const search = createSearchService({ venues: searchVenues, buyers: recordingBuyers().fn, ebay: disabledEbay(), planner });
+    const result = await search(input);
+
+    const off = await offResult();
+    expect(result).toEqual({ ...off, notices: [notice(reason), ...off.notices] });
+    expect(result.plan.source).toBe('catalog');
+    expect(result.notices.filter((n) => n.startsWith('Claude'))).toHaveLength(1);
+    const logged = log.all();
+    for (const text of [logged, result.notices.join('\n')]) {
+      expect(text).not.toContain(CLAUDE_KEY);
+      expect(text).not.toContain('private item');
+    }
+    expect(JSON.stringify(result)).not.toContain(CLAUDE_KEY);
+    expect(JSON.stringify(result)).not.toContain('Echo of');
+  });
+
+  it.each([
+    ['an unexpected error', async () => {
+      throw new TypeError('boom');
+    }],
+    ['a non-error value', async () => {
+      throw `${CLAUDE_KEY} private item text`;
+    }],
+  ])('%s from the client -> "unexpected error", never rejects', async (_label, create) => {
+    const log = spyConsole();
+    const planner = createPlanner({ client: { beta: { messages: { create } } }, model: 'm', catalog });
+    const search = createSearchService({ venues: searchVenues, buyers: recordingBuyers().fn, ebay: disabledEbay(), planner });
+    const result = await search(input);
+    const off = await offResult();
+    expect(result).toEqual({ ...off, notices: [notice('unexpected error'), ...off.notices] });
+    expect(log.all()).not.toContain(CLAUDE_KEY);
+    expect(log.all()).not.toContain('private item');
+  });
+
+  it('a planner that rejects anyway -> "unexpected error", never rejects', async () => {
+    const log = spyConsole();
+    const planner: Planner = () => Promise.reject(new Error('planner bug'));
+    const search = createSearchService({ venues: searchVenues, buyers: recordingBuyers().fn, ebay: disabledEbay(), planner });
+    const result = await search(input);
+    expect(result.notices[0]).toBe(notice('unexpected error'));
+    expect(result.plan.source).toBe('catalog');
+    expect(log.all()).not.toContain('private item');
+  });
+
+  it('the notice comes first, then the other notices unchanged', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const planner: Planner = async () => ({ ok: false, reason: 'declined' });
+    const search = createSearchService({
+      venues: searchVenues,
+      buyers: recordingBuyers(['Some Reddit searches failed; results may be incomplete']).fn,
+      ebay: disabledEbay(),
+      planner,
+    });
+    const result = await search({ item: 'asdfgh', location: 'Nowhereville', delivery: 'both', window: 30 });
+    expect(result.notices).toEqual([
+      notice('declined'),
+      'No specialist boards matched "asdfgh". Try more specific words (brand, model, type).',
+      `Couldn't match "Nowhereville" to a city; local links are generic.`,
+      'Some Reddit searches failed; results may be incomplete',
+    ]);
   });
 });
