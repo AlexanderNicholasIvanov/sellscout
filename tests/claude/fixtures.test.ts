@@ -105,6 +105,16 @@ describe('the fixture agreement through the real planner (run 4 AC11)', () => {
 });
 
 describe('fixture-mode searches (run 4 AC11)', () => {
+  // Fixture posts are dated relative to "now": freeze the clock (Date only, no timers) so two
+  // searches compared with each other can't straddle a second boundary and differ in createdUtc.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-26T12:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('"mechanical keyboard": via Claude, the AI venue right after r/mechmarket, terms and fixture data unchanged', async () => {
     const input = { item: 'mechanical keyboard', delivery: 'both', window: 30 } as const;
     const off = await fixtureService(false)(input);
