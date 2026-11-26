@@ -157,6 +157,30 @@ describe('25 s deadline (AC11)', () => {
   });
 });
 
+describe('nothing is sent after the deadline', () => {
+  it('a 401 at about 24.8 s asks for no new token once the search has returned', async () => {
+    // site-wide hangs (10.5 s), a1 hangs (21 s), b2 is sent at 21.5 s and gets a 401 at 24.8 s.
+    const fake = fakeFetch({
+      onSearch: (call) =>
+        new URL(call.url).pathname === '/r/b2/search'
+          ? new Promise<Response>((resolve) => setTimeout(() => resolve(new Response('', { status: 401 })), 3_300))
+          : hang(call),
+    });
+    const search = createBuyerSearch({ config: config(), version: '1.2.3', fetch: fake.fetch });
+    const started = Date.now();
+    const out = await settle(search({ ...query, context: { subreddits: ['a1', 'b2', 'c3'] } }));
+    const b2 = fake.searches().find((c) => c.url.includes('/r/b2/'));
+    expect(b2!.at - started).toBeGreaterThan(21_000);
+    expect(b2!.at - started + 3_300).toBeLessThan(25_000);
+    expect(out.buyers).toMatchObject({ status: 'unavailable', reason: 'Reddit did not answer within 25 s' });
+
+    const sent = fake.calls.length;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fake.calls.length).toBe(sent);
+    expect(fake.tokens()).toHaveLength(1);
+  });
+});
+
 describe('the location never leaves (AC15)', () => {
   it('no request URL, header or body contains anything from "Seattle"', async () => {
     const fake = fakeFetch({ onSearch: () => json(listing([{ id: 'p1', title: 'WTB RTX 3080' }])) });

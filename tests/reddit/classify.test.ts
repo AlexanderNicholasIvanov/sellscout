@@ -1,6 +1,6 @@
 // AC12 + AC13: classification and snippets.
 import { describe, expect, it } from 'vitest';
-import { buyerPosts, isBuyerPost, itemAppears, MAX_POSTS } from '../../server/reddit/classify.ts';
+import { buyerPosts, isBuyerPost, itemAppears, MAX_POSTS, tradeParts } from '../../server/reddit/classify.ts';
 import { snippet } from '../../server/reddit/snippet.ts';
 import { child } from './helpers.ts';
 
@@ -36,6 +36,15 @@ describe('isBuyerPost (AC12)', () => {
     ['WTBX RTX 3080', '', 'RTX 3080', false],
   ])('%j / %j (term %j) -> %s', (title, body, term, expected) => {
     expect(isBuyerPost(term, title, body)).toBe(expected);
+  });
+
+  it('finds [H] and [W] in the original title, even when lower-casing changes its length', () => {
+    expect(tradeParts('İİ [H] PayPal [W] RTX 3080')).toEqual({ have: ' PayPal ', want: ' RTX 3080' });
+    expect(tradeParts('[w] RTX 3080 [h] PayPal')).toEqual({ want: ' RTX 3080 ', have: ' PayPal' });
+    expect(tradeParts('WTB RTX 3080')).toBeUndefined();
+    // A seller title padded with "İ" stays a seller.
+    expect(isBuyerPost('RTX 3080', `${'İ'.repeat(12)} [H] RTX 3080 [W] PayPal`, '')).toBe(false);
+    expect(isBuyerPost('RTX 3080', `${'İ'.repeat(12)} [H] PayPal [W] RTX 3080`, '')).toBe(true);
   });
 
   it('needs max(1, ceil(n/2)) significant tokens: 2 of 3', () => {
@@ -152,6 +161,15 @@ describe('snippet (AC13)', () => {
   it('keeps at most 200 characters', () => {
     expect(snippet('x'.repeat(500))).toHaveLength(200);
     expect(snippet(`${'y'.repeat(199)}😀`).length).toBeLessThanOrEqual(200);
+  });
+
+  it('handles a hostile body of 40,000 "[" quickly', () => {
+    const started = performance.now();
+    const out = snippet('['.repeat(40_000));
+    const linked = snippet(`[a](b) ${'['.repeat(40_000)}](${'('.repeat(40_000)}`);
+    expect(performance.now() - started).toBeLessThan(50);
+    expect(out).toBe('['.repeat(200));
+    expect(linked).toBe(`a ${'['.repeat(198)}`);
   });
 
   it('is "" with no body', () => {

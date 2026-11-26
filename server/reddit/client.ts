@@ -39,12 +39,16 @@ export function createRedditClient(options: RedditClientOptions): RedditClient {
   const noAbort = new AbortController().signal;
 
   let cached: { token: string; expiresAt: number } | undefined;
-  let pending: Promise<TokenResult> | undefined;
+  /** The shared token request, and the signals of every search waiting for it. */
+  let pending: { promise: Promise<TokenResult>; waiters: AbortSignal[] } | undefined;
 
-  async function requestToken(): Promise<TokenResult> {
-    const startedAt = Date.now();
-    const result = await limiter.run(() =>
-      send(
+  async function requestToken(waiters: AbortSignal[]): Promise<TokenResult> {
+    let startedAt = Date.now();
+    const result = await limiter.run(async (): Promise<HttpResult> => {
+      // Queued behind the limiter: not sent once every search waiting for it has hit its deadline.
+      if (waiters.every((signal) => signal.aborted)) return { ok: false, reason: REASON.deadline };
+      startedAt = Date.now();
+      return send(
         fetchFn,
         TOKEN_URL,
         {
@@ -57,8 +61,8 @@ export function createRedditClient(options: RedditClientOptions): RedditClient {
           body: 'grant_type=client_credentials',
         },
         noAbort,
-      ),
-    );
+      );
+    });
     if (!result.ok) return result;
     const { status, headers, json } = result.response;
     limiter.observe(status, headers);
@@ -74,14 +78,27 @@ export function createRedditClient(options: RedditClientOptions): RedditClient {
     return { ok: true, token };
   }
 
-  /** The cached token while it is fresh; otherwise one shared token request. */
-  function getToken(): Promise<TokenResult> {
+  /** The cached token while it is fresh; otherwise one token request shared by every waiting search. */
+  function getToken(signal: AbortSignal): Promise<TokenResult> {
     if (cached && Date.now() < cached.expiresAt) return Promise.resolve({ ok: true, token: cached.token });
     cached = undefined;
-    pending ??= requestToken().finally(() => {
-      pending = undefined;
-    });
-    return pending;
+    if (!pending) {
+      const waiters: AbortSignal[] = [];
+      const promise = requestToken(waiters).finally(() => {
+        pending = undefined;
+      });
+      pending = { promise, waiters };
+    }
+    pending.waiters.push(signal);
+    return pending.promise;
+  }
+
+  /** A token for this search, or the outcome that ends it (deadline or sign-in failure). */
+  async function tokenFor(signal: AbortSignal): Promise<{ token: string } | SearchOutcome> {
+    if (signal.aborted) return { ok: false, reason: REASON.deadline, stop: true };
+    const token = await getToken(signal);
+    if (signal.aborted) return { ok: false, reason: REASON.deadline, stop: true };
+    return token.ok ? { token: token.token } : { ok: false, reason: signInFailed(token.reason), stop: true };
   }
 
   /** One search request, queued behind the limiter; skipped when aborted or cooling down. */
@@ -103,8 +120,8 @@ export function createRedditClient(options: RedditClientOptions): RedditClient {
     const left = limiter.coolDownLeftMs();
     if (left > 0) return { ok: false, reason: coolDownReason(left), stop: true };
 
-    let token = await getToken();
-    if (!token.ok) return { ok: false, reason: signInFailed(token.reason), stop: true };
+    let token = await tokenFor(signal);
+    if (!('token' in token)) return token;
 
     let result = await searchOnce(url, token.token, signal);
     if ('skipped' in result) return { ok: false, reason: result.skipped, stop: true };
@@ -112,8 +129,9 @@ export function createRedditClient(options: RedditClientOptions): RedditClient {
       limiter.observe(401, result.response.headers);
       // A 401 drops the cached token, fetches a new one once and retries this request once.
       cached = undefined;
-      token = await getToken();
-      if (!token.ok) return { ok: false, reason: signInFailed(token.reason), stop: true };
+      // The deadline may have passed while the 401 came in: then no new token is asked for.
+      token = await tokenFor(signal);
+      if (!('token' in token)) return token;
       result = await searchOnce(url, token.token, signal);
       if ('skipped' in result) return { ok: false, reason: result.skipped, stop: true };
     }

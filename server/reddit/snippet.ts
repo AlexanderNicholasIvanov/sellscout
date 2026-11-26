@@ -1,4 +1,6 @@
 export const SNIPPET_MAX = 200;
+/** Only the start of a body is read, so no regex ever runs over a huge body. */
+export const BODY_SCAN_MAX = 2000;
 
 /**
  * A post body as plain text: `[text](url)` becomes `text`, the markup characters `* _ # > ` ~`
@@ -6,8 +8,10 @@ export const SNIPPET_MAX = 200;
  */
 export function snippet(body: string | undefined | null): string {
   if (typeof body !== 'string') return '';
+  // Linear patterns only: neither part may contain its own delimiters, so a run of "[" fails fast.
   const plain = body
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .slice(0, BODY_SCAN_MAX)
+    .replace(/\[([^[\]]*)\]\([^()]*\)/g, '$1')
     .replace(/[*_#>`~]/g, '')
     .replace(/\s+/g, ' ')
     .trim();

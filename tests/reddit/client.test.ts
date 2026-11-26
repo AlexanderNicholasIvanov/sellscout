@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBuyerSearch } from '../../server/reddit/index.ts';
 import type { BuyerQuery, BuyerSearchOutput } from '../../server/reddit/index.ts';
-import { userAgent } from '../../server/reddit/client.ts';
+import { createRedditClient, userAgent } from '../../server/reddit/client.ts';
 import { searchVenues } from '../../server/venues/index.ts';
 import { CLIENT_ID, config, fakeFetch, json, listing, SECRET, settle, TOKEN, tokenResponse } from './helpers.ts';
 
@@ -122,6 +122,60 @@ describe('token (AC7)', () => {
     const out = await settle(search(rtx));
     expect(out.buyers.reason).toBe('Reddit sign-in failed (Reddit did not answer within 10 s)');
     expect(Date.now() - started).toBeLessThan(11_000);
+  });
+});
+
+describe('a shared token request and the deadline', () => {
+  const URL_A = 'https://oauth.reddit.com/search?q=a';
+
+  /** A client whose token has expired and whose limiter has just been used. */
+  async function primedClient(fake: ReturnType<typeof fakeFetch>) {
+    const client = createRedditClient({ reddit: config().reddit, version: '1.2.3', fetch: fake.fetch });
+    await settle(client.search(URL_A, new AbortController().signal));
+    await vi.advanceTimersByTimeAsync(2_000); // past expiresAt (61 s - 60 s margin)
+    return client;
+  }
+
+  it('is not sent when every search waiting for it has hit its deadline', async () => {
+    const fake = fakeFetch({ onToken: () => tokenResponse(TOKEN, 61) });
+    const client = await primedClient(fake);
+    const sent = fake.calls.length;
+    const a = new AbortController();
+    const b = new AbortController();
+    const pending = Promise.all([client.search(URL_A, a.signal), client.search(URL_A, b.signal)]);
+    a.abort();
+    b.abort();
+    const outcomes = await settle(pending);
+    expect(outcomes.map((o) => o.ok)).toEqual([false, false]);
+    expect(outcomes.map((o) => (o.ok ? '' : o.reason))).toEqual([
+      'Reddit did not answer within 25 s',
+      'Reddit did not answer within 25 s',
+    ]);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fake.calls.length).toBe(sent);
+  });
+
+  it('is still sent for a search that is still running', async () => {
+    const fake = fakeFetch({ onToken: () => tokenResponse(TOKEN, 61) });
+    const client = await primedClient(fake);
+    const a = new AbortController();
+    const b = new AbortController();
+    const pending = Promise.all([client.search(URL_A, a.signal), client.search(URL_A, b.signal)]);
+    a.abort();
+    const [outA, outB] = await settle(pending);
+    expect(outA!.ok).toBe(false);
+    expect(outB!.ok).toBe(true);
+    expect(fake.tokens()).toHaveLength(2);
+  });
+
+  it('no search starts once its signal has aborted', async () => {
+    const fake = fakeFetch();
+    const client = createRedditClient({ reddit: config().reddit, version: '1.2.3', fetch: fake.fetch });
+    const a = new AbortController();
+    a.abort();
+    const out = await settle(client.search(URL_A, a.signal));
+    expect(out).toEqual({ ok: false, reason: 'Reddit did not answer within 25 s', stop: true });
+    expect(fake.calls).toHaveLength(0);
   });
 });
 

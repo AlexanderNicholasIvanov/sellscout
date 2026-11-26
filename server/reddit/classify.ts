@@ -44,9 +44,9 @@ export function startsWithSellMarker(title: string): boolean {
 
 /** The `[H]` and `[W]` parts of a trade title, or undefined when it lacks either marker. */
 export function tradeParts(title: string): { have: string; want: string } | undefined {
-  const lower = title.toLowerCase();
-  const h = lower.indexOf('[h]');
-  const w = lower.indexOf('[w]');
+  // Positions in the original title: lower-casing can change the length ("İ" becomes 2 units).
+  const h = /\[h\]/i.exec(title)?.index ?? -1;
+  const w = /\[w\]/i.exec(title)?.index ?? -1;
   if (h < 0 || w < 0) return undefined;
   return h < w
     ? { have: title.slice(h + 3, w), want: title.slice(w + 3) }
