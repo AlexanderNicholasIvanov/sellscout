@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buyerTerm } from '../server/reddit/index.ts';
+import { buyerLinks } from '../server/reddit/links.ts';
 import type { BuyerQuery, BuyerSearchFn } from '../server/reddit/index.ts';
 import { createSearchService } from '../server/search.ts';
 import type { BuyersResult, SearchInput } from '../server/types.ts';
@@ -97,8 +98,11 @@ describe('createSearchService', () => {
         term: buyerTerm(input.item),
         windowDays: 90,
         posts: [],
-        links: [],
+        links: buyerLinks(buyerTerm(input.item), 90, 'both', venueResult.context),
       });
+      expect(result.buyers.links.map((link) => link.url)).toContain(
+        'https://seattle.craigslist.org/search/waa?query=RTX%203080%20private%20item',
+      );
 
       expect(stderr).toHaveBeenCalledTimes(1);
       expect(stderr.mock.calls[0]).toHaveLength(1);

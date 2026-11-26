@@ -9,7 +9,8 @@ item ("WTB", "ISO", "looking for"), plus ready-made links to search Reddit and C
 yourself.
 
 It runs on your own machine. Without Reddit app keys nothing leaves it: no accounts and no
-calls to other sites. With keys, only the search term goes to Reddit (see [Reddit](#reddit)).
+calls to other sites. With keys, Reddit receives the search term, the matched catalog subreddit names
+and a User-Agent naming sellscout (and your Reddit username, if you set one); see [Reddit](#reddit).
 
 ## Setup
 
@@ -150,7 +151,8 @@ The header then shows "Reddit: on". `.env` is git-ignored: never commit it or pa
 an issue.
 
 **What is searched**
-- Only the search term. It is the item text up to the first `,` `;` `(` `|` or ` - `, without
+- The search term, plus the names of the matched catalog subreddits and a User-Agent with
+  your platform, the sellscout version and `REDDIT_USERNAME` if set. The term is the item text up to the first `,` `;` `(` `|` or ` - `, without
   filler words such as "the", "used" or "mint", and at most 6 words. "Sony A7 III body, low
   shutter count" becomes "Sony A7 III".
 - One site-wide search for `(WTB OR ISO OR "looking for") <term>`, plus one in each of the
@@ -169,7 +171,8 @@ an issue.
 - Each request gives up after 10 s, and the whole Reddit search after 25 s.
 
 **Look yourself.** Every result has links to Reddit's own search (site-wide and per subreddit)
-and to Craigslist's "wanted" section for your city. They need no keys.
+and to Craigslist's "wanted" section for your city (Craigslist's city list when no city
+matched; no Craigslist link with "Ship it"). They need no keys.
 
 ## Privacy
 

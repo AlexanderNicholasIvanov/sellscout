@@ -1,6 +1,7 @@
 import type { BuyersResult, SearchFn, VenueSearchFn } from './types.ts';
 import { buyerTerm } from './reddit/index.ts';
 import type { BuyerSearchFn, BuyerSearchOutput } from './reddit/index.ts';
+import { buyerLinks } from './reddit/links.ts';
 
 export const BUYER_SEARCH_FAILED = 'Reddit search failed unexpectedly';
 
@@ -17,13 +18,15 @@ export function createSearchService(deps: { venues: VenueSearchFn; buyers: Buyer
     } catch (err) {
       // Log the stack only: never the item, the location or any key.
       console.error(err instanceof Error ? (err.stack ?? err.message) : 'Non-error value thrown by the buyer search');
+      const term = buyerTerm(input.item);
       const buyers: BuyersResult = {
         status: 'unavailable',
         reason: BUYER_SEARCH_FAILED,
-        term: buyerTerm(input.item),
+        term,
         windowDays: input.window,
         posts: [],
-        links: [],
+        // The look-yourself links are shown in every status, this one included.
+        links: buyerLinks(term, input.window, input.delivery, context),
       };
       output = { buyers, notices: [] };
     }
