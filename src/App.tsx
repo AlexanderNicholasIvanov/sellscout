@@ -101,7 +101,7 @@ function BuyersBody({ buyers, nowMs }: { buyers: BuyersResult; nowMs: number }) 
       );
     case 'unavailable':
       return <p className="buyers-message">Reddit search unavailable: {buyers.reason ?? 'unknown error'}</p>;
-    default:
+    case 'disabled':
       return (
         <p className="buyers-message">
           Add Reddit app keys to see live posts here. See the{' '}
@@ -115,21 +115,20 @@ function BuyersBody({ buyers, nowMs }: { buyers: BuyersResult; nowMs: number }) 
 }
 
 function Buyers({ buyers, nowMs }: { buyers: BuyersResult; nowMs: number }) {
+  const links = buyers.links.filter((link) => safeHref(link.url) !== null);
   return (
     <div className="buyers">
       <h2>People looking for it</h2>
       <p className="buyers-searched">{buyersSearchedText(buyers.term, buyers.windowDays)}</p>
       <BuyersBody buyers={buyers} nowMs={nowMs} />
       <h3 className="look-yourself">Look yourself</h3>
-      {buyers.links.length > 0 ? (
+      {links.length > 0 ? (
         <ul className="look-links">
-          {buyers.links.map((link, i) =>
-            safeHref(link.url) ? (
-              <li key={i}>
-                <ExternalLink href={link.url}>{link.label}</ExternalLink>
-              </li>
-            ) : null,
-          )}
+          {links.map((link, i) => (
+            <li key={i}>
+              <ExternalLink href={link.url}>{link.label}</ExternalLink>
+            </li>
+          ))}
         </ul>
       ) : null}
     </div>

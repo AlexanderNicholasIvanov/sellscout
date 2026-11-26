@@ -1,8 +1,10 @@
 import type {
+  BuyerPost,
   BuyersResult,
   BuyerWindow,
   Delivery,
   ErrorResponse,
+  FallbackLink,
   SearchInput,
   SearchResult,
   StatusResponse,
@@ -22,19 +24,48 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
   );
 }
 
-function isBuyersResult(value: unknown): value is BuyersResult {
-  if (typeof value !== 'object' || value === null) return false;
-  const v = value as Partial<BuyersResult>;
+const BUYER_STATUSES: readonly string[] = ['ok', 'unavailable', 'disabled'];
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isBuyerPost(value: unknown): value is BuyerPost {
   return (
-    typeof v.status === 'string' &&
-    Array.isArray(v.posts) &&
-    Array.isArray(v.links) &&
-    typeof v.term === 'string' &&
-    typeof v.windowDays === 'number'
+    isObject(value) &&
+    typeof value.id === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.subreddit === 'string' &&
+    typeof value.author === 'string' &&
+    typeof value.createdUtc === 'number' &&
+    typeof value.score === 'number' &&
+    typeof value.numComments === 'number' &&
+    typeof value.snippet === 'string' &&
+    typeof value.url === 'string'
   );
 }
 
-function isSearchResult(value: unknown): value is SearchResult {
+function isFallbackLink(value: unknown): value is FallbackLink {
+  return isObject(value) && typeof value.label === 'string' && typeof value.url === 'string';
+}
+
+function isBuyersResult(value: unknown): value is BuyersResult {
+  if (!isObject(value)) return false;
+  return (
+    typeof value.status === 'string' &&
+    BUYER_STATUSES.includes(value.status) &&
+    (value.reason === undefined || typeof value.reason === 'string') &&
+    typeof value.term === 'string' &&
+    typeof value.windowDays === 'number' &&
+    (BUYER_WINDOWS as readonly number[]).includes(value.windowDays) &&
+    Array.isArray(value.posts) &&
+    value.posts.every(isBuyerPost) &&
+    Array.isArray(value.links) &&
+    value.links.every(isFallbackLink)
+  );
+}
+
+export function isSearchResult(value: unknown): value is SearchResult {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Partial<SearchResult>;
   return (

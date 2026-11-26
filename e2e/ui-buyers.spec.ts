@@ -1,7 +1,7 @@
 // "People looking for it" with mocked /api/search and /api/status (AC20 disabled, AC21, AC22, AC24).
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { mockSearch, mockStatus } from './fixtures/mock.ts';
+import { loadFixture, mockSearch, mockStatus } from './fixtures/mock.ts';
 import type { FixtureName } from './fixtures/mock.ts';
 
 // The buyers-ok fixture's post times are relative to this instant.
@@ -132,6 +132,25 @@ test.describe('people looking for it', () => {
     // The javascript: look-yourself link is not rendered as a link.
     await expect(buyers.getByRole('link', { name: 'Unsafe look-yourself link' })).toHaveCount(0);
     await expect(page.locator('a[href^="javascript:"]')).toHaveCount(0);
+  });
+
+  test('AC24: when no look-yourself link is http(s), no empty list is rendered', async ({ page }) => {
+    const fixture = loadFixture('buyers-none');
+    fixture.buyers.links = [
+      { label: 'Script link', url: 'javascript:alert(1)' },
+      { label: 'Data link', url: 'data:text/html,hi' },
+      { label: 'Relative link', url: '/r/mechmarket' },
+    ];
+    await mockSearch(page, (route) => route.fulfill({ status: 200, json: fixture }));
+    await page.goto('/');
+    await page.getByLabel('What are you selling?').fill('mechanical keyboard');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    const buyers = buyersSection(page);
+    await expect(buyers.getByRole('heading', { level: 3, name: 'Look yourself' })).toBeVisible();
+    await expect(buyers.locator('.look-links')).toHaveCount(0);
+    await expect(buyers.locator('ul')).toHaveCount(0);
+    await expect(buyers.getByRole('link')).toHaveCount(0);
   });
 
   test('AC24: the disabled-state README link opens safely in a new tab', async ({ page }) => {

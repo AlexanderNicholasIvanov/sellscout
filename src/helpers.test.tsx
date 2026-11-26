@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildSearchInput, search, status } from './api.ts';
+import { buildSearchInput, isSearchResult, search, status } from './api.ts';
 import {
   ageText,
   buyersSearchedText,
@@ -215,6 +215,66 @@ describe('api', () => {
       respond({ plan, venues: [], buyers: bad, notices: [] });
       await expect(search({ item: 'tv', delivery: 'both', window: 30 })).rejects.toThrow('Unexpected response');
     }
+  });
+
+  describe('rejects a buyers object that breaks the contract', () => {
+    const plan = { source: 'catalog', categories: [], searchTerm: 'tv' };
+    const post = {
+      id: 't3_a',
+      title: 'WTB tv',
+      subreddit: 'mechmarket',
+      author: 'someone',
+      createdUtc: 1_795_608_000,
+      score: 1,
+      numComments: 0,
+      snippet: '',
+      url: 'https://www.reddit.com/r/mechmarket/comments/a/wtb_tv/',
+    };
+    const link = { label: 'Search Reddit for buyers', url: 'https://www.reddit.com/search/?q=tv' };
+    const buyers = { status: 'ok', term: 'tv', windowDays: 30, posts: [post], links: [link] };
+    const body = (b: unknown) => ({ plan, venues: [], buyers: b, notices: [] });
+
+    it('accepts a well-formed result in every status', () => {
+      expect(isSearchResult(body(buyers))).toBe(true);
+      expect(isSearchResult(body({ ...buyers, status: 'unavailable', reason: 'x', posts: [] }))).toBe(true);
+      expect(isSearchResult(body({ ...buyers, status: 'disabled', posts: [], links: [] }))).toBe(true);
+      for (const windowDays of [7, 90]) expect(isSearchResult(body({ ...buyers, windowDays }))).toBe(true);
+    });
+
+    const omit = (key: keyof typeof post) => {
+      const copy: Record<string, unknown> = { ...post };
+      delete copy[key];
+      return copy;
+    };
+    const bad: [string, unknown][] = [
+      ['a missing buyers object', undefined],
+      ['a null buyers object', null],
+      ['status "Ok"', { ...buyers, status: 'Ok' }],
+      ['a numeric status', { ...buyers, status: 1 }],
+      ['a numeric reason', { ...buyers, status: 'unavailable', reason: 403 }],
+      ['windowDays 14', { ...buyers, windowDays: 14 }],
+      ['windowDays "30"', { ...buyers, windowDays: '30' }],
+      ['a null term', { ...buyers, term: null }],
+      ['posts not an array', { ...buyers, posts: undefined }],
+      ['a null post', { ...buyers, posts: [null] }],
+      ['a string post', { ...buyers, posts: ['x'] }],
+      ...(Object.keys(post) as (keyof typeof post)[]).map(
+        (key): [string, unknown] => [`a post without ${key}`, { ...buyers, posts: [omit(key)] }],
+      ),
+      ['a post with a string score', { ...buyers, posts: [{ ...post, score: '1' }] }],
+      ['links not an array', { ...buyers, links: {} }],
+      ['a null link', { ...buyers, links: [null] }],
+      ['a link without a label', { ...buyers, links: [{ url: link.url }] }],
+      ['a link with a numeric url', { ...buyers, links: [{ label: 'x', url: 1 }] }],
+    ];
+
+    it.each(bad)('%s: isSearchResult is false and search() throws', async (_label, b) => {
+      expect(isSearchResult(body(b))).toBe(false);
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body(b)), { status: 200 })));
+      await expect(search({ item: 'tv', delivery: 'both', window: 30 })).rejects.toThrow(
+        'Unexpected response from server',
+      );
+    });
   });
 
   it('status() returns the validated status, or null on any failure', async () => {
