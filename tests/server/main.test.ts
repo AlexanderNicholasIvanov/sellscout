@@ -38,11 +38,13 @@ interface Spawned {
   exit: Promise<number | null>;
 }
 
-/** The test runner's environment without any sellscout, Reddit or eBay setting from the developer's shell. */
+/** The test runner's environment without any sellscout, Reddit, eBay or Anthropic setting from the developer's shell. */
 function cleanEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
   for (const name of Object.keys(env)) {
-    if (name.startsWith('SELLSCOUT_') || name.startsWith('REDDIT_') || name.startsWith('EBAY_')) delete env[name];
+    if (name.startsWith('SELLSCOUT_') || name.startsWith('REDDIT_') || name.startsWith('EBAY_') || name.startsWith('ANTHROPIC_')) {
+      delete env[name];
+    }
   }
   return env;
 }
@@ -164,6 +166,129 @@ describe('startServer in fixture mode: eBay (run 3 AC3, AC11)', () => {
   });
 });
 
+describe('startServer and Claude (run 4 AC3, AC4, AC11)', () => {
+  const nonLocal = (spy: { mock: { calls: unknown[][] } }): string[] =>
+    spy.mock.calls.map((call) => String(call[0] instanceof Request ? call[0].url : call[0])).filter((url) => !url.startsWith('http://127.0.0.1'));
+
+  it('reports claude: true with ANTHROPIC_API_KEY and fixtures off, and sends nothing at start-up', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const config = readConfig({ ANTHROPIC_API_KEY: 'SENTINEL-ANTHROPIC-KEY' });
+    const server = await startServer({ port: 0, version: '1.2.3', config });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    const res = await rawRequest(port, { path: '/api/status' });
+    expect(json(res)).toEqual({ version: '1.2.3', redditAuth: false, fixtures: false, ebay: false, claude: true });
+    expect(res.body).not.toContain('SENTINEL');
+    expect(nonLocal(fetchSpy)).toEqual([]);
+    fetchSpy.mockRestore();
+  });
+
+  it('with the key, a search that cannot reach Anthropic gives the catalog result and the notice', async () => {
+    const stderr = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // The server's fetch is late-bound to globalThis.fetch: replace it with one that fails every
+    // non-loopback request, as when offline. Nothing leaves the machine.
+    vi.stubEnv('ANTHROPIC_BASE_URL', '');
+    cleanups.push(async () => {
+      vi.unstubAllEnvs();
+    });
+    const realFetch = globalThis.fetch;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      return url.startsWith('http://127.0.0.1') ? realFetch(input, init) : Promise.reject(new TypeError('fetch failed'));
+    });
+    const config = readConfig({ ANTHROPIC_API_KEY: 'SENTINEL-ANTHROPIC-KEY' });
+    const server = await startServer({ port: 0, version: '1.2.3', config });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    const res = await postSearch(port, { item: 'mechanical keyboard', window: 30 });
+    expect(res.status).toBe(200);
+    const result = json(res) as SearchResult;
+    expect(result.plan.source).toBe('catalog');
+    expect(result.notices[0]).toBe("Claude couldn't help with this search (couldn't reach Anthropic); used the built-in catalog.");
+    expect(res.body).not.toContain('SENTINEL');
+    expect(stderr.mock.calls.flat().join('\n')).not.toContain('SENTINEL');
+    expect(stderr.mock.calls.flat().join('\n')).not.toContain('mechanical keyboard');
+    // One attempt at the Messages API, through the injected fetch only.
+    expect(nonLocal(fetchSpy).map((url) => new URL(url).pathname)).toEqual(['/v1/messages']);
+    fetchSpy.mockRestore();
+  });
+
+  it('without a key the result is the catalog one with no Claude notice', async () => {
+    const server = await startServer({ port: 0, version: '1.2.3', config: readConfig({}) });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    const result = json(await postSearch(port, { item: 'mechanical keyboard', window: 30 })) as SearchResult;
+    expect(result.plan.source).toBe('catalog');
+    expect(result.notices).toEqual([]);
+    expect(result.venues.some((v) => v.aiSuggested)).toBe(false);
+  });
+
+  it('fixture mode: claude false in the status; "mechanical keyboard" via Claude with the AI venue after r/mechmarket', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const config = readConfig({ SELLSCOUT_FIXTURES: '1', ANTHROPIC_API_KEY: 'SENTINEL-ANTHROPIC-KEY' });
+    const server = await startServer({ port: 0, version: '1.2.3', config });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    expect(json(await rawRequest(port, { path: '/api/status' }))).toEqual({
+      version: '1.2.3',
+      redditAuth: false,
+      fixtures: true,
+      ebay: false,
+      claude: false,
+    });
+
+    const res = await postSearch(port, { item: 'mechanical keyboard', delivery: 'both', window: 30 });
+    expect(res.status).toBe(200);
+    expect(res.body).not.toContain('SENTINEL');
+    const result = json(res) as SearchResult;
+    expect(result.plan).toEqual({
+      source: 'claude',
+      categories: [{ id: 'keyboards', name: 'Mechanical keyboards' }],
+      searchTerm: 'mechanical keyboard',
+    });
+    const ids = result.venues.map((v) => v.id);
+    expect(ids[0]).toBe('r-mechmarket');
+    expect(ids[1]).toBe('ai-r-mechanicalkeyboards');
+    expect(result.venues[1]).toMatchObject({ name: 'r/MechanicalKeyboards', url: 'https://www.reddit.com/r/MechanicalKeyboards/', aiSuggested: true });
+    expect(result.venues.filter((v) => v.aiSuggested)).toHaveLength(1);
+    expect(ids.indexOf('ebay-category')).toBe(ids.indexOf('ebay') + 1);
+    expect(result.buyers.term).toBe('mechanical keyboard');
+    expect(result.buyers.posts.length).toBeGreaterThan(0);
+    expect(result.ebay.term).toBe('mechanical keyboard');
+    expect(result.ebay.listings.map((l) => l.id)).toEqual(['fx_eb1', 'fx_eb2', 'fx_eb3', 'fx_eb4', 'fx_eb5', 'fx_eb6']);
+    expect(result.notices).toEqual([]);
+    expect(nonLocal(fetchSpy)).toEqual([]);
+    fetchSpy.mockRestore();
+  });
+
+  it('fixture mode: claude-refusal gives the catalog result and the notice', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const server = await startServer({ port: 0, version: '1.2.3', config: readConfig({ SELLSCOUT_FIXTURES: '1' }) });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    const result = json(await postSearch(port, { item: 'mechanical keyboard claude-refusal', window: 30 })) as SearchResult;
+    expect(result.plan).toEqual({
+      source: 'catalog',
+      categories: [{ id: 'keyboards', name: 'Mechanical keyboards' }],
+      searchTerm: 'mechanical keyboard claude-refusal',
+    });
+    expect(result.notices).toEqual(["Claude couldn't help with this search (declined); used the built-in catalog."]);
+    expect(result.venues.some((v) => v.aiSuggested)).toBe(false);
+    expect(result.venues[0]?.id).toBe('r-mechmarket');
+  });
+
+  it('an injected search never builds a planner', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const server = await startServer({ port: 0, search: fakeResult, version: '1.2.3', config: readConfig({ ANTHROPIC_API_KEY: 'SENTINEL-ANTHROPIC-KEY' }) });
+    cleanups.push(() => closeServer(server));
+    const { port } = server.address() as AddressInfo;
+    const result = json(await postSearch(port, { item: 'desk', window: 30 })) as SearchResult;
+    expect(result.plan.source).toBe('catalog');
+    expect(nonLocal(fetchSpy)).toEqual([]);
+    fetchSpy.mockRestore();
+  });
+});
+
 describe('startServer and POST /api/__fixtures (run 2b AC5)', () => {
   const searchIds = async (port: number, item: string): Promise<string[]> => {
     const res = await postSearch(port, { item, window: 30 });
@@ -248,6 +373,17 @@ describe('node server/main.ts', () => {
     expect(await res.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: false, ebay: false, claude: false });
   }, 20_000);
 
+  it('reports claude: true with ANTHROPIC_API_KEY in the environment (run 4 AC3)', async () => {
+    const port = await freePort();
+    const proc = spawnMain(String(port), { ANTHROPIC_API_KEY: 'SENTINEL-ANTHROPIC-KEY' });
+    await waitFor(() => proc.stdout().includes('\n') || proc.child.exitCode !== null, 15_000);
+    const res = await fetch(`http://127.0.0.1:${port}/api/status`);
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({ version: pkg.version, redditAuth: false, fixtures: false, ebay: false, claude: true });
+    expect(text).not.toContain('SENTINEL');
+    expect(proc.stdout() + proc.stderr()).not.toContain('SENTINEL');
+  }, 20_000);
+
   it('prints the port-in-use message and exits 1 (AC4)', async () => {
     const blocker = await occupyPort();
     cleanups.push(() => new Promise((r) => blocker.close(() => r())));
@@ -266,6 +402,7 @@ describe('node server/main.ts', () => {
       REDDIT_CLIENT_SECRET: 'SENTINEL-SECRET-123',
       EBAY_CLIENT_ID: 'SENTINEL-EBAY-ID',
       EBAY_CLIENT_SECRET: 'SENTINEL-EBAY-SECRET',
+      ANTHROPIC_API_KEY: 'SENTINEL-ANTHROPIC-KEY',
     });
     await waitFor(() => proc.stdout().includes(`127.0.0.1:${port}`) || proc.child.exitCode !== null, 15_000);
     expect(proc.stdout().trim().split(/\r?\n/)).toEqual([
@@ -283,7 +420,8 @@ describe('node server/main.ts', () => {
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).not.toContain('SENTINEL');
-    const body = JSON.parse(text) as { buyers: { term: string; windowDays: number }; ebay: SearchResult['ebay'] };
+    const body = JSON.parse(text) as { plan: SearchResult['plan']; buyers: { term: string; windowDays: number }; ebay: SearchResult['ebay'] };
+    expect(body.plan.source).toBe('claude');
     expect(body.buyers).toMatchObject({ term: 'mechanical keyboard', windowDays: 30 });
     expect(body.ebay.listings.map((l) => l.id)).toEqual(['fx_eb1', 'fx_eb2', 'fx_eb3', 'fx_eb4', 'fx_eb5', 'fx_eb6']);
     expect(body.ebay.priceRange).toEqual({ count: 6, p25: 85, median: 110, p75: 142.5 });

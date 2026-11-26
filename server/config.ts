@@ -4,7 +4,19 @@ export const DEFAULT_PORT = 5180;
 
 export interface RedditConfig { clientId: string; clientSecret: string; username: string } // trimmed, '' when unset
 export interface EbayConfig { clientId: string; clientSecret: string } // trimmed, '' when unset
-export interface AppConfig { port: number | null; fixtures: boolean; fixtureDelayMs: number; reddit: RedditConfig; ebay: EbayConfig }
+/** `apiKey` trimmed, '' when unset (always '' in fixture mode); `model` trimmed, default DEFAULT_CLAUDE_MODEL. */
+export interface ClaudeConfig { apiKey: string; model: string }
+export interface AppConfig {
+  port: number | null;
+  fixtures: boolean;
+  fixtureDelayMs: number;
+  reddit: RedditConfig;
+  ebay: EbayConfig;
+  claude: ClaudeConfig;
+}
+
+/** The model the Claude planner uses when SELLSCOUT_CLAUDE_MODEL is unset or empty. */
+export const DEFAULT_CLAUDE_MODEL = 'claude-opus-5-5';
 
 /** `PORT` from the environment: unset or empty means 5180; anything but an integer 1-65535 is `null`. */
 export function parsePort(value: string | undefined): number | null {
@@ -23,7 +35,10 @@ function parseDelay(value: string | undefined): number {
 
 const trimmed = (value: string | undefined): string => (typeof value === 'string' ? value.trim() : '');
 
-/** Fixture mode = env.SELLSCOUT_FIXTURES === '1' exactly; then every Reddit and eBay field is ''. */
+/**
+ * Fixture mode = env.SELLSCOUT_FIXTURES === '1' exactly; then every Reddit and eBay field and the
+ * Anthropic key are '' (the model is still read).
+ */
 export function readConfig(env: Record<string, string | undefined>): AppConfig {
   const fixtures = env.SELLSCOUT_FIXTURES === '1';
   return {
@@ -40,6 +55,10 @@ export function readConfig(env: Record<string, string | undefined>): AppConfig {
     ebay: fixtures
       ? { clientId: '', clientSecret: '' }
       : { clientId: trimmed(env.EBAY_CLIENT_ID), clientSecret: trimmed(env.EBAY_CLIENT_SECRET) },
+    claude: {
+      apiKey: fixtures ? '' : trimmed(env.ANTHROPIC_API_KEY),
+      model: trimmed(env.SELLSCOUT_CLAUDE_MODEL) || DEFAULT_CLAUDE_MODEL,
+    },
   };
 }
 
@@ -51,4 +70,9 @@ export function hasRedditKeys(config: AppConfig): boolean {
 /** true only when fixtures is off and the eBay clientId and clientSecret are both non-empty. */
 export function hasEbayKeys(config: AppConfig): boolean {
   return !config.fixtures && config.ebay.clientId !== '' && config.ebay.clientSecret !== '';
+}
+
+/** true only when fixtures is off and ANTHROPIC_API_KEY is non-empty. */
+export function hasClaudeKey(config: AppConfig): boolean {
+  return !config.fixtures && config.claude.apiKey !== '';
 }

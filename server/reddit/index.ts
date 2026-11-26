@@ -17,7 +17,8 @@ import { buyerTerm } from './term.ts';
 
 export { buyerTerm } from './term.ts';
 
-export interface BuyerQuery { item: string; windowDays: BuyerWindow; delivery: Delivery; context: BuyerContext }
+/** `term`: Claude's search term; unset = buyerTerm(item). */
+export interface BuyerQuery { item: string; windowDays: BuyerWindow; delivery: Delivery; context: BuyerContext; term?: string }
 export interface BuyerSearchOutput { buyers: BuyersResult; notices: string[] }
 export type BuyerSearchFn = (query: BuyerQuery) => Promise<BuyerSearchOutput>;
 export interface BuyerSearchOptions {
@@ -79,8 +80,8 @@ export function createBuyerSearch(options: BuyerSearchOptions): BuyerSearchFn {
       ? createRedditClient({ reddit: config.reddit, version: options.version, fetch: options.fetch })
       : undefined;
 
-  return async ({ item, windowDays, delivery, context }) => {
-    const term = buyerTerm(item);
+  return async ({ item, windowDays, delivery, context, term: picked }) => {
+    const term = picked || buyerTerm(item);
     const links = buyerLinks(term, windowDays, delivery, context);
     const base = { term, windowDays, links };
     if (!transport) return { buyers: { status: 'disabled', ...base, posts: [] }, notices: [] };

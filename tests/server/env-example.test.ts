@@ -84,6 +84,8 @@ describe('.env.example (AC25)', () => {
         'REDDIT_USERNAME',
         'EBAY_CLIENT_ID',
         'EBAY_CLIENT_SECRET',
+        'ANTHROPIC_API_KEY',
+        'SELLSCOUT_CLAUDE_MODEL',
       ]),
     );
     const documented = documentedVars();
@@ -104,5 +106,16 @@ describe('.env.example (AC25)', () => {
     expect(id).toBeGreaterThan(0);
     expect(lines[id + 1]).toBe('EBAY_CLIENT_SECRET=');
     expect(lines[id - 1]).toMatch(/^# .*eBay/);
+  });
+
+  it('lists ANTHROPIC_API_KEY and SELLSCOUT_CLAUDE_MODEL empty, each under a one-line comment (run 4 AC2)', () => {
+    const lines = readFileSync(join(repoRoot, '.env.example'), 'utf8').split(/\r?\n/);
+    const key = lines.indexOf('ANTHROPIC_API_KEY=');
+    const model = lines.indexOf('SELLSCOUT_CLAUDE_MODEL=');
+    expect(key).toBeGreaterThan(0);
+    expect(model).toBe(key + 2);
+    expect(lines[key - 1]).toMatch(/^# .*Anthropic/);
+    expect(lines[key - 2]).toBe('');
+    expect(lines[model - 1]).toMatch(/^# .*claude-opus-5-5/);
   });
 });
