@@ -191,8 +191,18 @@ input::placeholder {
   margin-top: 1.5rem;
 }
 
+/* Busy cue without dimming: stale results keep full contrast. */
 .results[aria-busy='true'] {
-  opacity: 0.6;
+  cursor: progress;
+}
+
+.results[aria-busy='true']::before {
+  content: '';
+  display: block;
+  height: 4px;
+  margin-bottom: 0.75rem;
+  background: var(--accent);
+  border-radius: 2px;
 }
 
 .notices ul {

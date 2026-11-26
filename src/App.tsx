@@ -76,6 +76,10 @@ export function App() {
   const [location, setLocation] = useState(loadLocation);
   const [delivery, setDelivery] = useState<Delivery>('both');
   const [itemError, setItemError] = useState(false);
+  // Bumped on every rejected submit so the error alert re-mounts and is announced again.
+  const [errorAttempt, setErrorAttempt] = useState(0);
+  // Bumped on every search so a repeated, identical notice is re-rendered and re-announced.
+  const [searchId, setSearchId] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SearchResult | null>(null);
@@ -89,12 +93,16 @@ export function App() {
     if (loading) return;
     if (item.trim() === '') {
       setItemError(true);
+      setErrorAttempt((n) => n + 1);
       itemRef.current?.focus();
       return;
     }
     setItemError(false);
     setError(null);
     setLoading(true);
+    setSearchId((n) => n + 1);
+    // Clear the previous notices so the status region changes and announces the new ones.
+    setResult((prev) => (prev ? { ...prev, notices: [] } : prev));
     const input = buildSearchInput(item, location, delivery);
     if (input.location) saveLocation(input.location);
 
@@ -142,7 +150,7 @@ export function App() {
               }}
             />
             {itemError ? (
-              <p id="item-error" className="field-error">
+              <p key={errorAttempt} id="item-error" className="field-error" role="alert">
                 {ITEM_ERROR}
               </p>
             ) : null}
@@ -194,7 +202,7 @@ export function App() {
         <section className="results" aria-label="Results" aria-busy={loading ? 'true' : 'false'}>
           <div role="status" className="notices">
             {result && result.notices.length > 0 ? (
-              <ul>
+              <ul key={searchId}>
                 {result.notices.map((notice, i) => (
                   <li key={i}>{notice}</li>
                 ))}

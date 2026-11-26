@@ -62,9 +62,21 @@ test.describe('accessibility', () => {
     await page.goto('/');
 
     await page.keyboard.press('Tab');
-    const outline = await page
-      .getByLabel('What are you selling?')
-      .evaluate((el) => getComputedStyle(el).outlineStyle);
-    expect(outline).not.toBe('none');
+    const item = page.getByLabel('What are you selling?');
+    await expect(item).toBeFocused();
+    // The app's own :focus-visible style (styles.css), not Chromium's default `outline: auto`.
+    const style = await item.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { style: cs.outlineStyle, width: cs.outlineWidth, offset: cs.outlineOffset };
+    });
+    expect(style).toEqual({ style: 'solid', width: '3px', offset: '2px' });
+
+    // The same style applies to the submit button and to result links.
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    const button = page.getByRole('button', { name: 'Search' });
+    await expect(button).toBeFocused();
+    expect(await button.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
   });
 });

@@ -27,6 +27,33 @@ test.describe('search form', () => {
     expect(calls).toHaveLength(0);
   });
 
+  test('AC17: Enter in the empty item field announces the error as an alert and sends nothing', async ({
+    page,
+  }) => {
+    const { calls } = await mockSearch(page, 'mechanical-keyboard');
+    await page.goto('/');
+
+    const item = page.getByLabel('What are you selling?');
+    await item.focus();
+    await item.press('Enter');
+
+    const alert = page.getByRole('alert').filter({ hasText: "Describe what you're selling" });
+    await expect(alert).toBeVisible();
+    await expect(alert).toHaveAttribute('id', 'item-error');
+    await expect(item).toBeFocused();
+    await expect(item).toHaveAttribute('aria-describedby', 'item-error');
+    await expect(item).toHaveAttribute('aria-invalid', 'true');
+
+    // A second Enter re-mounts the alert so assistive tech announces it again.
+    const first = await alert.elementHandle();
+    await item.press('Enter');
+    await expect(alert).toBeVisible();
+    expect(await first?.evaluate((el) => el.isConnected)).toBe(false);
+
+    await page.waitForTimeout(300);
+    expect(calls).toHaveLength(0);
+  });
+
   test('the form fields have their documented attributes', async ({ page }) => {
     await mockSearch(page, 'mechanical-keyboard');
     await page.goto('/');

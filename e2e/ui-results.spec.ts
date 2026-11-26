@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mockSearch } from './fixtures/mock.ts';
+import { loadFixture, mockSearch } from './fixtures/mock.ts';
 
 test.describe('search results', () => {
   test('AC18: "mechanical keyboard" shows the plan, the venues and the links', async ({ page }) => {
@@ -99,6 +99,42 @@ test.describe('search results', () => {
       return notice && heading ? notice.compareDocumentPosition(heading) : 0;
     });
     expect(order & 4).toBe(4); // Node.DOCUMENT_POSITION_FOLLOWING
+  });
+
+  test('an identical notice on a repeat search is cleared while searching and shown again', async ({
+    page,
+  }) => {
+    let gate: Promise<void> = Promise.resolve();
+    let release: () => void = () => {};
+    const { calls } = await mockSearch(page, async (route) => {
+      await gate;
+      await route.fulfill({ status: 200, json: loadFixture('no-match') });
+    });
+    await page.goto('/');
+
+    const notice = 'No specialist boards matched "asdfgh". Try more specific words (brand, model, type).';
+    const status = page.getByRole('status');
+    await page.getByLabel('What are you selling?').fill('asdfgh');
+    await page.getByRole('button', { name: 'Search' }).click();
+    await expect(status.getByRole('listitem')).toHaveText([notice]);
+
+    gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.getByRole('button', { name: 'Search' }).click();
+    await expect(page.getByRole('button', { name: 'Searching...' })).toBeDisabled();
+    await expect(status.getByRole('listitem')).toHaveCount(0);
+    await expect(status).toHaveText('');
+    // The busy cue does not dim the previous results (they keep full contrast).
+    const results = page.locator('section.results');
+    await expect(results).toHaveAttribute('aria-busy', 'true');
+    expect(await results.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+    expect(await page.locator('ol.venues').evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+
+    release();
+    await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeEnabled();
+    await expect(status.getByRole('listitem')).toHaveText([notice]);
+    expect(calls).toHaveLength(2);
   });
 
   test('AC22: every external link opens safely in a new tab', async ({ page }) => {
