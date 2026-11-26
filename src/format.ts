@@ -1,4 +1,4 @@
-import type { SearchPlan, VenueKind } from '../server/types.ts';
+import type { PriceRange, SearchPlan, VenueKind } from '../server/types.ts';
 
 const KIND_LABELS: Record<VenueKind, string> = {
   marketplace: 'marketplace',
@@ -66,8 +66,29 @@ export function buyersSearchedText(term: string, windowDays: number): string {
   return `Searched Reddit for "${term}" (last ${windowDays} days)`;
 }
 
-/** The header chips for GET /api/status. */
-export function statusChips(status: { redditAuth: boolean; fixtures: boolean }): string[] {
+const USD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+/** A US-dollar amount: 1234.56 -> "$1,234.56". */
+export function money(value: number): string {
+  return USD.format(value);
+}
+
+export function ebaySearchedText(term: string): string {
+  return `Searched eBay for "${term}" (fixed-price listings in US dollars)`;
+}
+
+/** The asking-price range line of the eBay section. */
+export function priceRangeText(range: PriceRange): string {
+  return `Asking prices of ${range.count} active listings (not sold prices): ${money(range.p25)} to ${money(range.p75)}, median ${money(range.median)}`;
+}
+
+export function ebayNoListingsText(term: string): string {
+  return `No fixed-price eBay listings found for "${term}".`;
+}
+
+/** The header chips for GET /api/status: Reddit, then eBay, then "Fixture data". */
+export function statusChips(status: { redditAuth: boolean; fixtures: boolean; ebay: boolean }): string[] {
   const reddit = status.redditAuth ? 'Reddit: on' : status.fixtures ? 'Reddit: fixture' : 'Reddit: off (no keys)';
-  return status.fixtures ? [reddit, 'Fixture data'] : [reddit];
+  const ebay = status.ebay ? 'eBay: on' : status.fixtures ? 'eBay: fixture' : 'eBay: off (no keys)';
+  return status.fixtures ? [reddit, ebay, 'Fixture data'] : [reddit, ebay];
 }

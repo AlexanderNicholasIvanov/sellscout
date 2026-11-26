@@ -144,6 +144,46 @@ test.describe('accessibility: people looking for it', () => {
   });
 });
 
+test.describe('accessibility: similar listings on eBay', () => {
+  test('AC14: keyboard only - search, reach an eBay listing link and "Search eBay yourself"', async ({ page }) => {
+    const { calls } = await mockSearch(page, 'ebay-ok');
+    await page.goto('/');
+
+    await page.keyboard.press('Tab');
+    await expect(page.getByLabel('What are you selling?')).toBeFocused();
+    await page.keyboard.type('mechanical keyboard');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: 'Similar listings on eBay' })).toBeVisible();
+    expect(calls).toHaveLength(1);
+
+    const focusedIn = (selector: string) =>
+      page.evaluate((sel) => {
+        const el = document.activeElement;
+        return el instanceof HTMLAnchorElement && el.closest(sel) !== null;
+      }, selector);
+
+    // Tab on through the form, the venues and the buyers until an eBay listing link has focus...
+    let reachedListing = false;
+    for (let i = 0; i < 40 && !reachedListing; i++) {
+      await page.keyboard.press('Tab');
+      reachedListing = await focusedIn('.ebay ol.listings');
+    }
+    expect(reachedListing).toBe(true);
+    const listing = page.locator('.ebay ol.listings a:focus');
+    await expect(listing).toHaveText('Keychron Q1 Pro mechanical keyboard, fully assembled');
+    expect(await listing.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+
+    // ...and then "Search eBay yourself".
+    let reachedYourself = false;
+    for (let i = 0; i < 10 && !reachedYourself; i++) {
+      await page.keyboard.press('Tab');
+      reachedYourself = await focusedIn('.ebay-yourself');
+    }
+    expect(reachedYourself).toBe(true);
+    await expect(page.locator('.ebay-yourself a:focus')).toHaveText('Search eBay yourself');
+  });
+});
+
 test.describe('accessibility: saved searches', () => {
   test('AC9: keyboard only - save, run a saved search, delete it and accept the confirm', async ({ page }) => {
     const { calls } = await mockSearch(page, 'buyers-ok');

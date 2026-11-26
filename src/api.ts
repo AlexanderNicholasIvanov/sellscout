@@ -3,8 +3,11 @@ import type {
   BuyersResult,
   BuyerWindow,
   Delivery,
+  EbayListing,
+  EbayResult,
   ErrorResponse,
   FallbackLink,
+  PriceRange,
   SearchInput,
   SearchResult,
   StatusResponse,
@@ -65,6 +68,47 @@ function isBuyersResult(value: unknown): value is BuyersResult {
   );
 }
 
+const EBAY_STATUSES: readonly string[] = ['ok', 'unavailable', 'disabled'];
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isEbayListing(value: unknown): value is EbayListing {
+  return (
+    isObject(value) &&
+    typeof value.id === 'string' &&
+    typeof value.title === 'string' &&
+    isFiniteNumber(value.price) &&
+    typeof value.condition === 'string' &&
+    typeof value.url === 'string'
+  );
+}
+
+function isPriceRange(value: unknown): value is PriceRange {
+  return (
+    isObject(value) &&
+    isFiniteNumber(value.count) &&
+    isFiniteNumber(value.p25) &&
+    isFiniteNumber(value.median) &&
+    isFiniteNumber(value.p75)
+  );
+}
+
+function isEbayResult(value: unknown): value is EbayResult {
+  if (!isObject(value)) return false;
+  return (
+    typeof value.status === 'string' &&
+    EBAY_STATUSES.includes(value.status) &&
+    (value.reason === undefined || typeof value.reason === 'string') &&
+    typeof value.term === 'string' &&
+    typeof value.searchUrl === 'string' &&
+    Array.isArray(value.listings) &&
+    value.listings.every(isEbayListing) &&
+    (value.priceRange === undefined || isPriceRange(value.priceRange))
+  );
+}
+
 export function isSearchResult(value: unknown): value is SearchResult {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Partial<SearchResult>;
@@ -75,6 +119,7 @@ export function isSearchResult(value: unknown): value is SearchResult {
     typeof v.plan.searchTerm === 'string' &&
     Array.isArray(v.venues) &&
     isBuyersResult(v.buyers) &&
+    isEbayResult(v.ebay) &&
     Array.isArray(v.notices)
   );
 }
@@ -124,7 +169,12 @@ export async function search(input: SearchInput, signal?: AbortSignal): Promise<
 function isStatusResponse(value: unknown): value is StatusResponse {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Partial<StatusResponse>;
-  return typeof v.version === 'string' && typeof v.redditAuth === 'boolean' && typeof v.fixtures === 'boolean';
+  return (
+    typeof v.version === 'string' &&
+    typeof v.redditAuth === 'boolean' &&
+    typeof v.fixtures === 'boolean' &&
+    typeof v.ebay === 'boolean'
+  );
 }
 
 /** GETs /api/status. Resolves to null on any failure or a malformed body; never throws. */

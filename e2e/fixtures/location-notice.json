@@ -30,5 +30,6 @@
     }
   ],
   "buyers": { "status": "disabled", "term": "mechanical keyboard", "windowDays": 30, "posts": [], "links": [] },
+  "ebay": { "status": "disabled", "term": "mechanical keyboard", "listings": [], "searchUrl": "https://www.ebay.com/sch/i.html?_nkw=mechanical%20keyboard" },
   "notices": ["Couldn't match \"Nowhereville\" to a city; local links are generic."]
 }
