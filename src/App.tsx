@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, RefObject } from 'react';
 import type {
   BuyerPost,
@@ -40,6 +40,7 @@ import {
 } from './saved.ts';
 import type { SavedSearch, SavedStorage } from './saved.ts';
 import { LOCATION_MAX, loadLocation, saveLocation } from './storage.ts';
+import { SETTINGS_PANEL_ID, SettingsPanel } from './Settings.tsx';
 
 const ITEM_MAX = 200;
 const ITEM_ERROR = "Describe what you're selling";
@@ -164,7 +165,7 @@ function BuyersBody({ buyers, nowMs, newIds }: BuyersProps) {
     case 'disabled':
       return (
         <p className="buyers-message">
-          Add Reddit app keys to see live posts here. See the{' '}
+          Add Reddit app keys in Settings to see live posts here. See the{' '}
           <a href={README_REDDIT_URL} target="_blank" rel="noopener noreferrer">
             README&apos;s Reddit section
           </a>
@@ -235,7 +236,7 @@ function EbayBody({ ebay }: { ebay: EbayResult }) {
     case 'disabled':
       return (
         <p className="ebay-message">
-          Add eBay app keys to see similar listings and asking prices. See the{' '}
+          Add eBay app keys in Settings to see similar listings and asking prices. See the{' '}
           <a href={README_EBAY_URL} target="_blank" rel="noopener noreferrer">
             README&apos;s eBay section
           </a>
@@ -401,17 +402,30 @@ export function App() {
   const itemRef = useRef<HTMLInputElement>(null);
   const savedHeadingRef = useRef<HTMLHeadingElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // Header chips are best effort: any failure just leaves them out.
+  // Header chips are best effort: any failure just leaves them out (or, on a refresh, as they were).
+  const loadChips = useCallback(
+    (signal?: AbortSignal) =>
+      status(signal).then((s) => {
+        if (s && !signal?.aborted) setChips(statusChips(s));
+      }),
+    [],
+  );
+
   useEffect(() => {
     const controller = new AbortController();
-    void status(controller.signal).then((s) => {
-      if (s && !controller.signal.aborted) setChips(statusChips(s));
-    });
+    void loadChips(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [loadChips]);
+
+  function closeSettings() {
+    setSettingsOpen(false);
+    settingsButtonRef.current?.focus();
+  }
 
   /** Shows a list that was just written; "last run" ages restart from `nowMs`. */
   function commitList(next: SavedSearch[], nowMs: number) {
@@ -520,18 +534,32 @@ export function App() {
       <header className="site-header">
         <h1>sellscout</h1>
         <p className="tagline">Find the boards where your item will sell.</p>
-        {chips.length > 0 ? (
-          <ul className="chips" aria-label="Data sources">
-            {chips.map((chip) => (
-              <li key={chip} className="chip">
-                {chip}
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        <div className="header-bar">
+          {chips.length > 0 ? (
+            <ul className="chips" aria-label="Data sources">
+              {chips.map((chip) => (
+                <li key={chip} className="chip">
+                  {chip}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <button
+            ref={settingsButtonRef}
+            type="button"
+            className="secondary settings-button"
+            aria-expanded={settingsOpen}
+            aria-controls={SETTINGS_PANEL_ID}
+            onClick={() => setSettingsOpen((open) => !open)}
+          >
+            Settings
+          </button>
+        </div>
       </header>
 
       <main>
+        {settingsOpen ? <SettingsPanel onClose={closeSettings} onSaved={() => void loadChips()} /> : null}
+
         <form className="search-form" onSubmit={onSubmit} noValidate aria-label="Search for boards">
           <div className="field">
             <label htmlFor="item">What are you selling?</label>

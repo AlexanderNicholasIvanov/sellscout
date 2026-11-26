@@ -11,9 +11,14 @@ import type {
   SearchInput,
   SearchPlan,
   SearchResult,
+  SettingKey,
+  SettingsResponse,
+  SettingState,
+  SettingsUpdate,
   StatusResponse,
   Venue,
 } from '../server/types.ts';
+import { SETTING_KEYS, isSecretSetting } from '../server/settings/keys.ts';
 
 export const BUYER_WINDOWS: readonly BuyerWindow[] = [7, 30, 90];
 export const DEFAULT_BUYER_WINDOW: BuyerWindow = 30;
@@ -235,4 +240,76 @@ export async function status(signal?: AbortSignal): Promise<StatusResponse | nul
   } catch {
     return null;
   }
+}
+
+// Settings screen (run 5): GET / PUT /api/settings.
+
+export class SettingsError extends Error {}
+
+/** The message for a save that got no usable answer: a network failure, bad JSON or a bad body. */
+export const NO_ANSWER = 'no answer from the server';
+
+const SETTING_SOURCES: readonly string[] = ['environment', 'settings', 'none'];
+
+/** One key's state. A secret key never carries a value: a body that has one is rejected. */
+function isSettingState(key: SettingKey, value: unknown): value is SettingState {
+  return (
+    isObject(value) &&
+    typeof value.source === 'string' &&
+    SETTING_SOURCES.includes(value.source) &&
+    typeof value.secret === 'boolean' &&
+    isOptionalString(value.value) &&
+    !((value.secret || isSecretSetting(key)) && value.value !== undefined)
+  );
+}
+
+/** All 7 keys present and valid; `file` is a string exactly when the settings are editable. */
+export function isSettingsResponse(value: unknown): value is SettingsResponse {
+  if (!isObject(value)) return false;
+  const { editable, file, settings } = value;
+  return (
+    typeof editable === 'boolean' &&
+    (file === null || typeof file === 'string') &&
+    editable === (file !== null) &&
+    isObject(settings) &&
+    SETTING_KEYS.every((key) => isSettingState(key, settings[key]))
+  );
+}
+
+/** GETs /api/settings. Throws SettingsError on any failure or a malformed body. */
+export async function getSettings(signal?: AbortSignal): Promise<SettingsResponse> {
+  let body: unknown;
+  try {
+    const res = await fetch('/api/settings', { signal });
+    if (!res.ok) throw new SettingsError(`HTTP ${res.status}`);
+    body = await res.json();
+  } catch (err) {
+    if (err instanceof SettingsError) throw err;
+    throw new SettingsError(NO_ANSWER);
+  }
+  if (!isSettingsResponse(body)) throw new SettingsError('Unexpected response from server');
+  return body;
+}
+
+/**
+ * PUTs the changed values to /api/settings and resolves to the new settings. Throws SettingsError
+ * with the server's `error`, or with NO_ANSWER on a network failure or an unreadable answer.
+ */
+export async function saveSettings(values: SettingsUpdate['values']): Promise<SettingsResponse> {
+  const update: SettingsUpdate = { values };
+  let res: Response;
+  let body: unknown;
+  try {
+    res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(update),
+    });
+    body = await res.json();
+  } catch {
+    throw new SettingsError(NO_ANSWER);
+  }
+  if (!res.ok) throw new SettingsError(isErrorResponse(body) ? body.error : NO_ANSWER);
+  if (!isSettingsResponse(body)) throw new SettingsError(NO_ANSWER);
+  return body;
 }
