@@ -13,6 +13,7 @@ test.describe('accessibility', () => {
       await expect(page.getByRole('radio', { name, exact: true })).toBeVisible();
     }
     await expect(page.getByRole('group', { name: 'Delivery' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Buyer posts from the last' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Search' })).toBeVisible();
   });
 
@@ -71,12 +72,74 @@ test.describe('accessibility', () => {
     });
     expect(style).toEqual({ style: 'solid', width: '3px', offset: '2px' });
 
-    // The same style applies to the submit button and to result links.
+    // The same style applies to the window select, the submit button and to result links.
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    const select = page.getByLabel('Buyer posts from the last');
+    await expect(select).toBeFocused();
+    expect(await select.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
     await page.keyboard.press('Tab');
     const button = page.getByRole('button', { name: 'Search' });
     await expect(button).toBeFocused();
     expect(await button.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+  });
+});
+
+test.describe('accessibility: people looking for it', () => {
+  test('AC25: keyboard only - choose the window, search, reach a post link and a look-yourself link', async ({
+    page,
+  }) => {
+    const { calls } = await mockSearch(page, 'buyers-ok');
+    await page.goto('/');
+
+    await page.keyboard.press('Tab');
+    await expect(page.getByLabel('What are you selling?')).toBeFocused();
+    await page.keyboard.type('mechanical keyboard');
+
+    // Item -> location -> delivery radio -> window select.
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('radio', { name: 'Both' })).toBeFocused();
+    await page.keyboard.press('Tab');
+    const select = page.getByRole('combobox', { name: 'Buyer posts from the last' });
+    await expect(select).toBeFocused();
+    await expect(select).toHaveValue('30');
+
+    // Arrow keys change a closed select: 30 days -> 7 days.
+    await page.keyboard.press('ArrowUp');
+    await expect(select).toHaveValue('7');
+
+    // Tab to the submit button; Enter searches.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Search' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: 'People looking for it' })).toBeVisible();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body.window).toBe(7);
+
+    const focusedIn = (selector: string) =>
+      page.evaluate((sel) => {
+        const el = document.activeElement;
+        return el instanceof HTMLAnchorElement && el.closest(sel) !== null;
+      }, selector);
+
+    // Tab on through the venues until a post link has focus...
+    let reachedPost = false;
+    for (let i = 0; i < 30 && !reachedPost; i++) {
+      await page.keyboard.press('Tab');
+      reachedPost = await focusedIn('ol.posts');
+    }
+    expect(reachedPost).toBe(true);
+    await expect(page.locator('ol.posts a:focus')).toHaveText('WTB a 65% mechanical keyboard');
+
+    // ...and then a look-yourself link.
+    let reachedLook = false;
+    for (let i = 0; i < 10 && !reachedLook; i++) {
+      await page.keyboard.press('Tab');
+      reachedLook = await focusedIn('.look-links');
+    }
+    expect(reachedLook).toBe(true);
+    await expect(page.locator('.look-links a:focus')).toHaveText('Search Reddit for buyers');
   });
 });

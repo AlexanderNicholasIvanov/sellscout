@@ -1,12 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import type { Delivery, SearchResult, Venue } from '../server/types.ts';
-import { buildSearchInput, search } from './api.ts';
-import { kindLabel, safeHref, searchLinkText, understoodAs, whyText } from './format.ts';
+import type { BuyerPost, BuyersResult, BuyerWindow, Delivery, SearchResult, Venue } from '../server/types.ts';
+import { BUYER_WINDOWS, DEFAULT_BUYER_WINDOW, buildSearchInput, search, status } from './api.ts';
+import {
+  buyersSearchedText,
+  kindLabel,
+  postMetaText,
+  postStatsText,
+  safeHref,
+  searchLinkText,
+  statusChips,
+  understoodAs,
+  whyText,
+} from './format.ts';
 import { LOCATION_MAX, loadLocation, saveLocation } from './storage.ts';
 
 const ITEM_MAX = 200;
 const ITEM_ERROR = "Describe what you're selling";
+
+const README_REDDIT_URL = 'https://github.com/AlexanderNicholasIvanov/sellscout#reddit';
 
 const DELIVERY_OPTIONS: { value: Delivery; label: string }[] = [
   { value: 'ship', label: 'Ship it' },
@@ -53,7 +65,77 @@ function VenueRow({ venue, searchTerm }: { venue: Venue; searchTerm: string }) {
   );
 }
 
-function Results({ result }: { result: SearchResult }) {
+function PostRow({ post, nowMs }: { post: BuyerPost; nowMs: number }) {
+  const href = safeHref(post.url);
+  return (
+    <li className="post">
+      <p className="post-title">
+        {href ? (
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            {post.title}
+          </a>
+        ) : (
+          post.title
+        )}
+      </p>
+      <p className="post-meta">{postMetaText(post.subreddit, post.author, post.createdUtc, nowMs)}</p>
+      <p className="post-stats">{postStatsText(post.score, post.numComments)}</p>
+      {post.snippet !== '' ? <p className="post-snippet">{post.snippet}</p> : null}
+    </li>
+  );
+}
+
+function BuyersBody({ buyers, nowMs }: { buyers: BuyersResult; nowMs: number }) {
+  switch (buyers.status) {
+    case 'ok':
+      return buyers.posts.length > 0 ? (
+        <ol className="posts">
+          {buyers.posts.map((post) => (
+            <PostRow key={post.id} post={post} nowMs={nowMs} />
+          ))}
+        </ol>
+      ) : (
+        <p className="buyers-message">
+          No one is asking for this on Reddit in the last {buyers.windowDays} days.
+        </p>
+      );
+    case 'unavailable':
+      return <p className="buyers-message">Reddit search unavailable: {buyers.reason ?? 'unknown error'}</p>;
+    case 'disabled':
+      return (
+        <p className="buyers-message">
+          Add Reddit app keys to see live posts here. See the{' '}
+          <a href={README_REDDIT_URL} target="_blank" rel="noopener noreferrer">
+            README&apos;s Reddit section
+          </a>
+          .
+        </p>
+      );
+  }
+}
+
+function Buyers({ buyers, nowMs }: { buyers: BuyersResult; nowMs: number }) {
+  const links = buyers.links.filter((link) => safeHref(link.url) !== null);
+  return (
+    <div className="buyers">
+      <h2>People looking for it</h2>
+      <p className="buyers-searched">{buyersSearchedText(buyers.term, buyers.windowDays)}</p>
+      <BuyersBody buyers={buyers} nowMs={nowMs} />
+      <h3 className="look-yourself">Look yourself</h3>
+      {links.length > 0 ? (
+        <ul className="look-links">
+          {links.map((link, i) => (
+            <li key={i}>
+              <ExternalLink href={link.url}>{link.label}</ExternalLink>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function Results({ result, nowMs }: { result: SearchResult; nowMs: number }) {
   return (
     <>
       <p className="understood">{understoodAs(result.plan)}</p>
@@ -67,6 +149,7 @@ function Results({ result }: { result: SearchResult }) {
       ) : (
         <p>No boards fit this delivery choice. Try another delivery option.</p>
       )}
+      <Buyers buyers={result.buyers} nowMs={nowMs} />
     </>
   );
 }
@@ -75,6 +158,8 @@ export function App() {
   const [item, setItem] = useState('');
   const [location, setLocation] = useState(loadLocation);
   const [delivery, setDelivery] = useState<Delivery>('both');
+  const [buyerWindow, setBuyerWindow] = useState<BuyerWindow>(DEFAULT_BUYER_WINDOW);
+  const [chips, setChips] = useState<string[]>([]);
   const [itemError, setItemError] = useState(false);
   // Bumped on every rejected submit so the error alert re-mounts and is announced again.
   const [errorAttempt, setErrorAttempt] = useState(0);
@@ -83,10 +168,21 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SearchResult | null>(null);
+  // When the result arrived; post ages are relative to it so rendering stays pure.
+  const [resultAt, setResultAt] = useState(0);
   const itemRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // Header chips are best effort: any failure just leaves them out.
+  useEffect(() => {
+    const controller = new AbortController();
+    void status(controller.signal).then((s) => {
+      if (s && !controller.signal.aborted) setChips(statusChips(s));
+    });
+    return () => controller.abort();
+  }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -103,7 +199,7 @@ export function App() {
     setSearchId((n) => n + 1);
     // Clear the previous notices so the status region changes and announces the new ones.
     setResult((prev) => (prev ? { ...prev, notices: [] } : prev));
-    const input = buildSearchInput(item, location, delivery);
+    const input = buildSearchInput(item, location, delivery, buyerWindow);
     if (input.location) saveLocation(input.location);
 
     const controller = new AbortController();
@@ -111,6 +207,7 @@ export function App() {
     try {
       const data = await search(input, controller.signal);
       if (controller.signal.aborted) return;
+      setResultAt(Date.now());
       setResult(data);
     } catch (err) {
       if (controller.signal.aborted) return;
@@ -126,6 +223,15 @@ export function App() {
       <header className="site-header">
         <h1>sellscout</h1>
         <p className="tagline">Find the boards where your item will sell.</p>
+        {chips.length > 0 ? (
+          <ul className="chips" aria-label="Data sources">
+            {chips.map((chip) => (
+              <li key={chip} className="chip">
+                {chip}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </header>
 
       <main>
@@ -190,6 +296,25 @@ export function App() {
             </div>
           </fieldset>
 
+          <div className="field">
+            <label htmlFor="window">Buyer posts from the last</label>
+            <select
+              id="window"
+              name="window"
+              value={buyerWindow}
+              onChange={(e) => {
+                const next = BUYER_WINDOWS.find((w) => String(w) === e.target.value);
+                if (next !== undefined) setBuyerWindow(next);
+              }}
+            >
+              {BUYER_WINDOWS.map((w) => (
+                <option key={w} value={w}>
+                  {w} days
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button type="submit" className="submit" disabled={loading}>
             {loading ? 'Searching...' : 'Search'}
           </button>
@@ -209,7 +334,7 @@ export function App() {
               </ul>
             ) : null}
           </div>
-          {result ? <Results result={result} /> : null}
+          {result ? <Results result={result} nowMs={resultAt} /> : null}
         </section>
       </main>
     </div>
