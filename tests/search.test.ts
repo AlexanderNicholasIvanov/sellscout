@@ -43,13 +43,17 @@ describe('createSearchService', () => {
     expect(buyers.calls).toEqual([{ item: 'RTX 3080', windowDays: 7, delivery: 'local', context }]);
     expect(buyers.calls[0]?.context.subreddits[0]).toBe('hardwareswap');
     expect(buyers.calls[0]?.context.craigslist).toBe('seattle');
-    expect(result).toEqual({ ...venueResult, buyers: okBuyers(buyers.calls[0] as BuyerQuery) });
+    expect(result).toEqual({
+      ...venueResult,
+      buyers: okBuyers(buyers.calls[0] as BuyerQuery),
+      ebay: { status: 'disabled', term: 'RTX 3080', listings: [], searchUrl: 'https://www.ebay.com/sch/i.html?_nkw=RTX%203080' },
+    });
   });
 
   it('never puts the context in the output (AC5)', async () => {
     const search = createSearchService({ venues: searchVenues, buyers: recordingBuyers().fn });
     const result = await search({ item: 'RTX 3080', location: 'Seattle', delivery: 'both', window: 30 });
-    expect(Object.keys(result).sort()).toEqual(['buyers', 'notices', 'plan', 'venues']);
+    expect(Object.keys(result).sort()).toEqual(['buyers', 'ebay', 'notices', 'plan', 'venues']);
     expect(result).not.toHaveProperty('context');
   });
 
@@ -134,7 +138,7 @@ describe('POST /api/search through the service (AC5)', () => {
     const res = await postSearch(app.port, { item: 'RTX 3080', location: 'Seattle', delivery: 'local' });
     expect(res.status).toBe(200);
     const body = json(res) as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(['buyers', 'notices', 'plan', 'venues']);
+    expect(Object.keys(body).sort()).toEqual(['buyers', 'ebay', 'notices', 'plan', 'venues']);
     expect(res.body).not.toContain('"context"');
     expect(res.body).not.toContain('"subreddits"');
     expect(app.calls).toEqual([{ item: 'RTX 3080', location: 'Seattle', delivery: 'local', window: 30 }]);

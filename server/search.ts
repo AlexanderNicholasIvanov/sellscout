@@ -1,4 +1,4 @@
-import type { BuyersResult, SearchFn, VenueSearchFn } from './types.ts';
+import type { BuyersResult, EbayResult, SearchFn, VenueSearchFn } from './types.ts';
 import { buyerTerm } from './reddit/index.ts';
 import type { BuyerSearchFn, BuyerSearchOutput } from './reddit/index.ts';
 import { buyerLinks } from './reddit/links.ts';
@@ -30,6 +30,14 @@ export function createSearchService(deps: { venues: VenueSearchFn; buyers: Buyer
       };
       output = { buyers, notices: [] };
     }
-    return { plan, venues, buyers: output.buyers, notices: [...venueNotices, ...output.notices] };
+    // Contract stub (run 3 wave 0): u1 replaces this with the real eBay search.
+    const term = buyerTerm(input.item);
+    const ebay: EbayResult = {
+      status: 'disabled',
+      term,
+      listings: [],
+      searchUrl: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(term)}`,
+    };
+    return { plan, venues, buyers: output.buyers, ebay, notices: [...venueNotices, ...output.notices] };
   };
 }

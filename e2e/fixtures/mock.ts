@@ -121,11 +121,15 @@ export async function mockSearch(
 }
 
 /** Intercepts GET /api/status with the given status body, or with a bare HTTP status code. */
-export async function mockStatus(page: Page, respond: Omit<StatusResponse, 'version'> | number): Promise<void> {
+/** `ebay` defaults to false, so run-2 callers keep working. */
+export async function mockStatus(
+  page: Page,
+  respond: (Omit<StatusResponse, 'version' | 'ebay'> & { ebay?: boolean }) | number,
+): Promise<void> {
   await page.route('**/api/status', (route) =>
     typeof respond === 'number'
       ? route.fulfill({ status: respond, json: { error: 'Internal error' } })
-      : route.fulfill({ status: 200, json: { version: '0.1.0', ...respond } }),
+      : route.fulfill({ status: 200, json: { version: '0.1.0', ebay: false, ...respond } }),
   );
 }
 
