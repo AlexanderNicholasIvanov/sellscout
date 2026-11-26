@@ -58,6 +58,10 @@ In PowerShell: `$env:SELLSCOUT_FIXTURES=1; npm start`.
 - The items `reddit-403`, `reddit-429`, `reddit-html` and `reddit-timeout` show those failures.
 - `SELLSCOUT_FIXTURE_DELAY_MS` (a whole number of milliseconds, default 0) delays each canned
   answer.
+- `POST /api/__fixtures` exists only in fixture mode (anywhere else it is a 404). The e2e tests
+  use it to add a canned post, `{"post":{"id":"...","title":"...","subreddit":"..."}}` (with
+  optional `selftext` and `ageHours`; the same id replaces a post), or to restore the built-in
+  posts with `{"reset":true}`. The added posts live in the server's memory only.
 
 ### Using it
 
@@ -75,6 +79,19 @@ and links that open in a new tab.
 **People looking for it** comes next. It shows the Reddit search term and, with Reddit keys,
 the matching posts: title, subreddit, author, age, score, comments and the start of the text.
 Its **Look yourself** links work with or without keys. Header chips show whether Reddit is on.
+
+**Saved searches**
+- **Save search**, right after the "Understood as" line, saves the search behind the shown
+  result: the item, location, delivery and window that were searched, even if you have edited
+  the form since. Saving the same search again says "Already saved".
+- Saved searches are listed under **Saved searches**, between the form and the results, newest
+  first, with their delivery, window, location and when they last ran.
+- **Run** fills the form with the saved values and searches. Buyer posts you hadn't seen at the
+  last run (or at saving) get a **New** badge, and a line says how many are new ("1 new since
+  your last run", or "Nothing new since your last run"). A normal search shows no badges.
+- **Delete** removes a saved search after you confirm.
+- You can keep up to 50. At 50, delete one before saving another.
+- Nothing runs in the background: a saved search only runs when you press **Run**.
 
 The page works with the keyboard alone and on narrow (375 px) screens.
 
@@ -186,6 +203,10 @@ matched; no Craigslist link with "Ship it"). They need no keys.
   browser.
 - Your last location is kept only in this browser's localStorage (`sellscout.location.v1`) and
   prefilled next time. Clearing the site data removes it.
+- Saved searches (the item, location, delivery, window and the ids of the posts you have seen)
+  live only in this browser's localStorage under `sellscout.savedSearches.v1`. Clearing the
+  site data removes them. If that data can't be read, it is copied to
+  `sellscout.savedSearches.v1.corrupt` and the list starts again empty.
 - Links to other sites open in a new tab with `rel="noopener noreferrer"`. sellscout never
   scrapes or posts to any site.
 
@@ -195,8 +216,8 @@ sellscout is being built in steps, each its own pull request:
 1. **Where to post it.** Board catalog, local boards for your city, the app and CI (done).
 2. **People looking for it.**
    - 2a. Reddit buyer posts with your own Reddit app keys, look-yourself links, fixture mode
-     and status chips (done, this version).
-   - 2b. Saved searches, with "New" badges on posts you haven't seen yet (next).
+     and status chips (done).
+   - 2b. Saved searches, with "New" badges on posts you haven't seen yet (done, this version).
 3. **Similar listings on eBay.** Active listings and a typical asking-price range (optional free
    eBay developer key).
 4. **Smarter matching with Claude.** With your own `ANTHROPIC_API_KEY`, Claude picks boards and

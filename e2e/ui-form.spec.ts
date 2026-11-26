@@ -8,7 +8,7 @@ test.describe('search form', () => {
 
     const item = page.getByLabel('What are you selling?');
     await page.getByLabel('Location (optional)').focus();
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
 
     const error = page.getByText("Describe what you're selling");
     await expect(error).toBeVisible();
@@ -83,7 +83,7 @@ test.describe('search form', () => {
     await page.goto('/');
 
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
 
     const busy = page.getByRole('button', { name: 'Searching...' });
     await expect(busy).toBeDisabled();
@@ -105,7 +105,7 @@ test.describe('search form', () => {
     await page.goto('/');
 
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
 
     await expect(page.getByRole('alert')).toHaveText('Search failed: Internal error');
     await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeEnabled();
@@ -118,7 +118,7 @@ test.describe('search form', () => {
     await page.goto('/');
 
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
 
     await expect(page.getByRole('alert')).toHaveText(/^Search failed: \S/);
     await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeEnabled();
@@ -129,7 +129,7 @@ test.describe('search form', () => {
     await page.goto('/');
 
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
 
     await expect(page.getByRole('alert')).toHaveText(/^Search failed: \S/);
     await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeEnabled();
