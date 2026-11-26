@@ -1,0 +1,33 @@
+{
+  "plan": {
+    "source": "catalog",
+    "categories": [{ "id": "keyboards", "name": "Mechanical keyboards" }],
+    "searchTerm": "mechanical keyboard"
+  },
+  "venues": [
+    {
+      "id": "r-mechmarket",
+      "name": "r/mechmarket",
+      "kind": "subreddit",
+      "url": "https://www.reddit.com/r/mechmarket/",
+      "searchUrl": "https://www.reddit.com/r/mechmarket/search/?q=mechanical%20keyboard&restrict_sr=1",
+      "ships": true,
+      "local": false,
+      "tips": ["Title format: [US-XX] [H] what you have [W] PayPal"],
+      "why": ["mechanical keyboard", "keyboard"],
+      "categoryIds": ["keyboards"]
+    },
+    {
+      "id": "craigslist",
+      "name": "Craigslist",
+      "kind": "local-classifieds",
+      "url": "https://www.craigslist.org/about/sites",
+      "ships": false,
+      "local": true,
+      "tips": ["Never accept overpayment or shipping-only buyers"],
+      "why": ["Sells almost anything"],
+      "categoryIds": []
+    }
+  ],
+  "notices": ["Couldn't match \"Nowhereville\" to a city; local links are generic."]
+}

@@ -1,0 +1,31 @@
+{
+  "plan": { "source": "catalog", "categories": [], "searchTerm": "asdfgh" },
+  "venues": [
+    {
+      "id": "ebay",
+      "name": "eBay",
+      "kind": "marketplace",
+      "url": "https://www.ebay.com/sl/sell",
+      "searchUrl": "https://www.ebay.com/sch/i.html?_nkw=asdfgh",
+      "ships": true,
+      "local": true,
+      "feeNote": "Final value fee of roughly 13% for most categories.",
+      "tips": ["Check sold listings to price it"],
+      "why": ["Sells almost anything"],
+      "categoryIds": []
+    },
+    {
+      "id": "mercari",
+      "name": "Mercari",
+      "kind": "marketplace",
+      "url": "https://www.mercari.com/sell/",
+      "searchUrl": "https://www.mercari.com/search/?keyword=asdfgh",
+      "ships": true,
+      "local": false,
+      "tips": ["Use a prepaid shipping label"],
+      "why": ["Sells almost anything"],
+      "categoryIds": []
+    }
+  ],
+  "notices": ["No specialist boards matched \"asdfgh\". Try more specific words (brand, model, type)."]
+}
