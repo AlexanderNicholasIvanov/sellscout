@@ -1,0 +1,34 @@
+# Windows installer for the sellscout desktop app: `npm run desktop:dist` (after the UI build and
+# `npm run desktop:bundle`) writes release/sellscout-Setup-<version>.exe. Not code-signed.
+appId: io.github.alexandernicholasivanov.sellscout
+productName: sellscout
+copyright: Copyright © 2026 Alexander Ivanov
+directories:
+  output: release
+  buildResources: desktop/resources
+# The bundle carries all the code (the server and @anthropic-ai/sdk included), so the app packs
+# no node_modules: every dependency is a dev dependency.
+files:
+  - out/desktop/**
+  - dist/**
+  - package.json
+asar: true
+npmRebuild: false
+icon: desktop/resources/icon.png
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: desktop/resources/icon.png
+nsis:
+  # Per user, no admin rights, with a choice of install folder.
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: sellscout
+  # The uninstaller leaves %APPDATA%\sellscout (settings.json and the window's storage).
+  deleteAppDataOnUninstall: false
+  artifactName: sellscout-Setup-${version}.${ext}
