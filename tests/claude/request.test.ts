@@ -96,7 +96,7 @@ describe('the Claude request through the real SDK (run 4 AC5)', () => {
 describe('the SDK client options (run 4 AC4, AC10)', () => {
   it('are an explicit key, no auth token, no retries and a 30 s timeout', () => {
     expect(CLAUDE_TIMEOUT_MS).toBe(30_000);
-    expect(clientOptions(CLAUDE_KEY)).toEqual({ apiKey: CLAUDE_KEY, authToken: null, maxRetries: 0, timeout: 30_000 });
+    expect(clientOptions(CLAUDE_KEY)).toEqual({ apiKey: CLAUDE_KEY, authToken: null, baseURL: 'https://api.anthropic.com', maxRetries: 0, timeout: 30_000, logLevel: 'off' });
   });
 
   it('the real client is built with them', () => {
@@ -111,7 +111,7 @@ describe('the SDK client options (run 4 AC4, AC10)', () => {
       },
     });
     expect(planner).toBeTypeOf('function');
-    expect(built).toEqual([{ apiKey: CLAUDE_KEY, authToken: null, maxRetries: 0, timeout: 30_000, fetch }]);
+    expect(built).toEqual([{ apiKey: CLAUDE_KEY, authToken: null, baseURL: 'https://api.anthropic.com', maxRetries: 0, timeout: 30_000, logLevel: 'off', fetch }]);
     const client = new Anthropic(built[0]);
     expect(client.maxRetries).toBe(0);
     expect(client.timeout).toBe(30_000);
@@ -125,6 +125,15 @@ describe('the SDK client options (run 4 AC4, AC10)', () => {
     const { planner, calls } = realPlanner({ ANTHROPIC_API_KEY: CLAUDE_KEY });
     await planner('desk');
     expect(JSON.stringify(calls[0]?.headers)).not.toContain('SENTINEL-AUTH-TOKEN');
+  });
+
+  it('an ANTHROPIC_BASE_URL in the environment never redirects the request', async () => {
+    const recorded = recordingFetch(() => jsonResponse(answerBody(GOOD)));
+    vi.stubEnv('ANTHROPIC_BASE_URL', 'https://proxy.example.test');
+    const planner = createClaudePlanner({ config: readConfig({ ANTHROPIC_API_KEY: CLAUDE_KEY }), fetch: recorded.fetch });
+    await planner?.('desk');
+    expect(recorded.calls).toHaveLength(1);
+    expect(new URL(recorded.calls[0]?.url ?? '').origin).toBe('https://api.anthropic.com');
   });
 
   it('with no key (fixtures off) there is no planner and no SDK client is constructed (run 4 AC4)', () => {

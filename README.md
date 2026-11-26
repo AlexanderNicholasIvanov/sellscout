@@ -300,7 +300,9 @@ commit it or paste the key into an issue.
 
 **Model.** `SELLSCOUT_CLAUDE_MODEL` overrides the default `claude-opus-5-5`. The model must
 support structured outputs and the `effort` setting; one that doesn't gets an HTTP 400, and
-sellscout falls back to the catalog with the notice below.
+sellscout falls back to the catalog with the notice below. sellscout opts in to Anthropic's
+server-side fallback: if the model declines a request on policy grounds, Anthropic may answer it
+with its recommended substitute model in the same request.
 
 **Cost.** One request per search, billed to your key. sellscout asks for low effort and a small
 JSON answer, so a search costs little, but it is not free.
@@ -308,10 +310,14 @@ JSON answer, so a search costs little, but it is not free.
 **When Claude fails.** If the request times out (after 30 s), the key is rejected, the rate
 limit is hit, Anthropic returns an error, or the answer is cut off, declined or unusable,
 sellscout uses the built-in catalog for that search and shows one notice, for example "Claude
-couldn't help with this search (rate limited); used the built-in catalog." Nothing is retried.
+couldn't help with this search (rate limited); used the built-in catalog." sellscout never
+retries a request itself; "declined" means the substitute model declined too.
 
-**What Claude receives:** the item text and the catalog's category list, never the location,
-the delivery choice, the buyer window, saved searches or any key.
+**What Claude receives:** the item text, a fixed instruction and the catalog's category list
+(names and a few keywords each), never the location, the delivery choice, the buyer window,
+saved searches or your Reddit and eBay keys. Your Anthropic key goes only in the request's
+`Authorization` header, with the SDK's version and platform headers (OS, architecture, Node
+version). Requests always go to `https://api.anthropic.com`: `ANTHROPIC_BASE_URL` is ignored.
 
 In [fixture mode](#fixture-mode) Claude is never called; see the Claude fixture terms there.
 
@@ -326,7 +332,8 @@ In [fixture mode](#fixture-mode) Claude is never called; see the Claude fixture 
 - The same search term is sent to eBay's API only when eBay keys are set. eBay receives the
   search term only: never the location or the delivery choice.
 - With an Anthropic key, Claude receives the item text and the catalog's category list,
-  never the location, saved searches or any key. Without the key nothing is sent to Anthropic.
+  never the location, saved searches or your Reddit and eBay keys. Without the key nothing is
+  sent to Anthropic.
 - Reddit, eBay and Anthropic keys, and the eBay access token, stay in `.env` and in the
   server's memory.
   They are never logged or sent to the browser.

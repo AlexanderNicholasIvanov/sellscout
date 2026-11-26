@@ -127,9 +127,31 @@ function isSearchPlan(value: unknown): value is SearchPlan {
   );
 }
 
-/** A venue object; `aiSuggested` is either absent or exactly `true`. */
+const VENUE_KINDS: readonly string[] = ['marketplace', 'subreddit', 'forum', 'facebook', 'local-classifieds'];
+
+const isStrings = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+
+const isOptionalString = (value: unknown): boolean => value === undefined || typeof value === 'string';
+
+/** Every field the venue row reads; `aiSuggested` is either absent or exactly `true`. */
 function isVenue(value: unknown): value is Venue {
-  return isObject(value) && (value.aiSuggested === undefined || value.aiSuggested === true);
+  return (
+    isObject(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.kind === 'string' &&
+    VENUE_KINDS.includes(value.kind) &&
+    typeof value.url === 'string' &&
+    isOptionalString(value.searchUrl) &&
+    isOptionalString(value.feeNote) &&
+    typeof value.ships === 'boolean' &&
+    typeof value.local === 'boolean' &&
+    isStrings(value.tips) &&
+    isStrings(value.why) &&
+    isStrings(value.categoryIds) &&
+    (value.aiSuggested === undefined || value.aiSuggested === true)
+  );
 }
 
 export function isSearchResult(value: unknown): value is SearchResult {

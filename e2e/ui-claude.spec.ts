@@ -70,7 +70,11 @@ test.describe('Claude picks (mocked)', () => {
     await mockSearch(page, (route) => route.fulfill({ status: 200, json: body }));
     await page.goto('/');
     await search(page);
-    await expect(row(page, AI_NAME).getByRole('link')).toHaveCount(1);
+    const links = row(page, AI_NAME).getByRole('link');
+    await expect(links).toHaveCount(1);
+    await expect(links).toHaveText('Open board');
+    await expect(links).toHaveAttribute('href', AI_URL);
+    await expect(row(page, AI_NAME).getByRole('link', { name: /^Search for / })).toHaveCount(0);
   });
 
   test('the Claude fallback notice shows in the notices region with "via built-in catalog"', async ({ page }) => {

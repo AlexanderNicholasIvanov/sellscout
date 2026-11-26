@@ -106,6 +106,21 @@ describe('api guards: Claude', () => {
     expect(isSearchResult(result([null as unknown as Venue]))).toBe(false);
   });
 
+  it('rejects a venue missing a field the venue row reads, instead of crashing the render', () => {
+    const broken: unknown[] = [
+      {},
+      { id: 'x' },
+      { ...CATALOG_VENUE, why: 'x' },
+      { ...CATALOG_VENUE, tips: undefined },
+      { ...CATALOG_VENUE, categoryIds: [1] },
+      { ...CATALOG_VENUE, kind: 'shop' },
+      { ...CATALOG_VENUE, url: 1 },
+      { ...CATALOG_VENUE, searchUrl: 1 },
+      { ...CATALOG_VENUE, ships: 'yes' },
+    ];
+    for (const venue of broken) expect(isSearchResult(result([venue as Venue]))).toBe(false);
+  });
+
   it('reads the claude field of the status, a missing one as false', async () => {
     const base = { version: '0.1.0', redditAuth: false, fixtures: false, ebay: false };
     const respond = (body: unknown) =>
@@ -178,7 +193,11 @@ describe('venue row: AI suggested badge', () => {
         { ...AI_VENUE, id: 'ai-r-bad', name: 'r/BadLink', url: 'javascript:alert(1)' },
       ]),
     );
-    expect(within(row('r/MechanicalKeyboards')).getAllByRole('link')).toHaveLength(1);
+    const aiLinks = within(row('r/MechanicalKeyboards')).getAllByRole('link');
+    expect(aiLinks).toHaveLength(1);
+    expect(aiLinks[0]).toHaveTextContent('Open board');
+    expect(aiLinks[0]).toHaveAttribute('href', 'https://www.reddit.com/r/MechanicalKeyboards/');
+    expect(within(row('r/MechanicalKeyboards')).queryByRole('link', { name: /^Search for / })).toBeNull();
     const bad = row('r/BadLink');
     expect(within(bad).getByText('AI suggested')).toBeInTheDocument();
     expect(within(bad).queryAllByRole('link')).toHaveLength(0);

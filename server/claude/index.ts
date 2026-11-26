@@ -9,17 +9,29 @@ import type { AppConfig } from '../config.ts';
 import { catalog as builtInCatalog } from '../data/catalog.ts';
 import type { Catalog } from '../types.ts';
 import { createFixtureClient } from './fixtures.ts';
-import { createPlanner } from './planner.ts';
+import { CLAUDE_TIMEOUT_MS, createPlanner } from './planner.ts';
 import type { Planner, PlannerClient } from './types.ts';
 
-export { claudeNotice, createPlanner, REASON } from './planner.ts';
+export { CLAUDE_TIMEOUT_MS, claudeNotice, createPlanner, REASON } from './planner.ts';
 export type { ClaudePicks, Planner, PlannerOutcome } from './types.ts';
 
-export const CLAUDE_TIMEOUT_MS = 30_000;
+/** Requests always go to Anthropic's API, whatever ANTHROPIC_BASE_URL says. */
+export const ANTHROPIC_API_URL = 'https://api.anthropic.com';
 
-/** The SDK options: an explicit key only (no auth token, profile or env lookup), no retries. */
+/**
+ * The SDK options: an explicit key only (no auth token, profile or env lookup), the fixed API URL,
+ * no retries, and SDK logging off (ANTHROPIC_LOG=debug would print the request body, the item).
+ */
 export function clientOptions(apiKey: string, fetch?: typeof globalThis.fetch): ClientOptions {
-  return { apiKey, authToken: null, maxRetries: 0, timeout: CLAUDE_TIMEOUT_MS, ...(fetch ? { fetch } : {}) };
+  return {
+    apiKey,
+    authToken: null,
+    baseURL: ANTHROPIC_API_URL,
+    maxRetries: 0,
+    timeout: CLAUDE_TIMEOUT_MS,
+    logLevel: 'off',
+    ...(fetch ? { fetch } : {}),
+  };
 }
 
 export interface ClaudePlannerOptions {

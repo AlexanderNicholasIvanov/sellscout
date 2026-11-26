@@ -133,7 +133,7 @@ describe('README (run 4, AC15)', () => {
   it('keeps Claude in the Privacy section, never with the location', () => {
     const privacy = section('Privacy');
     expect(privacy).toContain("Claude receives the item text and the catalog's category list");
-    expect(privacy).toContain('never the location, saved searches or any key');
+    expect(privacy).toContain('never the location, saved searches or your Reddit and eBay keys');
   });
 
   it('lists the Claude fixture terms under Fixture mode', () => {

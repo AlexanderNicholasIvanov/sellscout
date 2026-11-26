@@ -17,5 +17,5 @@ export type PlannerRequest = MessageCreateParamsNonStreaming;
  * pass a stand-in. The answer is read defensively, so it is typed `unknown`.
  */
 export interface PlannerClient {
-  beta: { messages: { create(params: PlannerRequest): PromiseLike<unknown> } };
+  beta: { messages: { create(params: PlannerRequest, options?: { signal?: AbortSignal }): PromiseLike<unknown> } };
 }

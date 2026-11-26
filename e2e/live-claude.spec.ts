@@ -1,8 +1,7 @@
 // Run 4 AC13: the Claude planner against the real server in fixture mode (SELLSCOUT_FIXTURES=1,
 // set in playwright.config.ts), where it runs on the in-repo stand-in client. Only the
-// external-request guard is installed, so nothing leaves the machine.
-// These need the real Claude planner (u1); without it every fixture search is "via built-in
-// catalog" and has no AI-suggested venue.
+// browser's external-request guard is installed here; the server side never calls Anthropic,
+// Reddit or eBay in fixture mode because of its own outbound fetch guard (tests/server).
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { blockExternalRequests } from './fixtures/mock.ts';
@@ -25,7 +24,7 @@ test.describe('live Claude', () => {
   });
 
   test.afterEach(() => {
-    // Nothing left the machine: no Anthropic, Reddit or eBay call.
+    // No browser request left the machine (server-side calls are covered by the fetch guard).
     expect(blocked).toEqual([]);
   });
 

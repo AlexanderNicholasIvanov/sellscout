@@ -16,6 +16,8 @@ import { createValidator } from './validate.ts';
 
 export const MAX_TOKENS = 8000;
 export const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
+/** The whole call, headers and body, must finish within this (the SDK timeout covers headers only). */
+export const CLAUDE_TIMEOUT_MS = 30_000;
 
 /** The `<reason>` of each failure (spec "Failures"). */
 export const REASON = {
@@ -40,16 +42,26 @@ export interface PlannerOptions {
   catalog: Catalog;
   /** Where failures are logged. Default: console.error. */
   log?: (message: string) => void;
+  /** Overall deadline for one call, in ms. Default: CLAUDE_TIMEOUT_MS. */
+  deadlineMs?: number;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-/** The text of the first `text` content block, or undefined. */
-function firstText(message: Record<string, unknown>): string | undefined {
+/**
+ * The text of the answer: the first `text` block after the last `fallback` block (with
+ * server-side fallback, the declined model's partial output comes before that block), or of the
+ * first `text` block when there is none. Undefined when there is no such block.
+ */
+function answerText(message: Record<string, unknown>): string | undefined {
   const { content } = message;
   if (!Array.isArray(content)) return undefined;
-  for (const block of content) {
+  let start = 0;
+  content.forEach((block, index) => {
+    if (isRecord(block) && block.type === 'fallback') start = index + 1;
+  });
+  for (const block of content.slice(start)) {
     if (isRecord(block) && block.type === 'text') return typeof block.text === 'string' ? block.text : undefined;
   }
   return undefined;
@@ -74,8 +86,17 @@ function describeError(err: unknown): string {
   return err instanceof Error ? (err.stack ?? err.name) : 'Non-error value thrown';
 }
 
+/** A response body that is not JSON: the SDK's SyntaxError message quotes the body, so log the name only. */
+function failureFor(err: unknown): { reason: string; detail: string } {
+  if (err instanceof SyntaxError) return { reason: REASON.unusable, detail: 'SyntaxError (response body is not JSON)' };
+  return { reason: reasonFor(err), detail: describeError(err) };
+}
+
+const DEADLINE = Symbol('deadline');
+
 export function createPlanner(options: PlannerOptions): Planner {
   const { client, model, catalog } = options;
+  const deadlineMs = options.deadlineMs ?? CLAUDE_TIMEOUT_MS;
   const log = options.log ?? ((message: string) => console.error(message));
   // Built once: the same bytes for every search.
   const system = buildSystemPrompt(catalog);
@@ -100,17 +121,32 @@ export function createPlanner(options: PlannerOptions): Planner {
 
   return async (item) => {
     let message: unknown;
+    // The SDK timeout stops at the response headers; this deadline also covers the body.
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<typeof DEADLINE>((resolve) => {
+      timer = setTimeout(() => resolve(DEADLINE), deadlineMs);
+    });
     try {
-      message = await client.beta.messages.create(request(item.trim().replace(/\s+/g, ' ')));
+      const call = client.beta.messages.create(request(item.trim().replace(/\s+/g, ' ')), { signal: controller.signal });
+      const result = await Promise.race([call, deadline]);
+      if (result === DEADLINE) {
+        controller.abort();
+        return fail(REASON.timeout, 'deadline passed');
+      }
+      message = result;
     } catch (err) {
-      return fail(reasonFor(err), describeError(err));
+      const { reason, detail } = failureFor(err);
+      return fail(reason, detail);
+    } finally {
+      clearTimeout(timer);
     }
     try {
       if (!isRecord(message)) return fail(REASON.unusable, 'no message');
       // stop_reason first: a cut-off or declined answer is never parsed.
       if (message.stop_reason === 'refusal') return fail(REASON.refusal, 'stop_reason refusal');
       if (message.stop_reason === 'max_tokens') return fail(REASON.maxTokens, 'stop_reason max_tokens');
-      const text = firstText(message);
+      const text = answerText(message);
       if (text === undefined) return fail(REASON.unusable, 'no text block');
       let parsed: unknown;
       try {

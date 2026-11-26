@@ -78,6 +78,21 @@ describe('reading the answer (run 4 "The planner")', () => {
     expect(await planner(ITEM)).toEqual({ ok: true, picks: GOOD });
   });
 
+  it('after a server-side fallback, reads the fallback model\'s answer, not the declined partial', async () => {
+    const fallback = { type: 'fallback', from: { model: 'claude-opus-5-5' }, to: { model: 'claude-opus-5' } };
+    const { planner } = fakePlanner(async () =>
+      messageBody([textBlock('{"categoryIds":["key'), fallback, textBlock(JSON.stringify(GOOD))]),
+    );
+    expect(await planner(ITEM)).toEqual({ ok: true, picks: GOOD });
+  });
+
+  it('a fallback block with no text after it is an unusable answer', async () => {
+    spyConsole();
+    const fallback = { type: 'fallback', from: { model: 'claude-opus-5-5' }, to: { model: 'claude-opus-5' } };
+    const { planner } = fakePlanner(async () => messageBody([textBlock(JSON.stringify(GOOD)), fallback]));
+    expect(await planner(ITEM)).toEqual({ ok: false, reason: 'unusable answer' });
+  });
+
   it.each([
     ['no content', messageBody([])],
     ['only a thinking block', messageBody([{ type: 'thinking', thinking: 'x', signature: 's' }])],
@@ -214,5 +229,36 @@ describe('the Failures table through the real SDK client (run 4 AC9)', () => {
     const { fetch } = recordingFetch(() => jsonResponse(answerBody(GOOD)));
     const planner = createPlanner({ client: sdkClient(fetch), model: 'claude-opus-5-5', catalog });
     expect(await planner(ITEM)).toEqual({ ok: true, picks: GOOD });
+  });
+
+  it('a body that stalls after the headers still ends at the deadline: "timed out" (run 4 AC10)', async () => {
+    const log = spyConsole();
+    const stalled = (): Response =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"id":'));
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json', 'request-id': 'req_test' } },
+      );
+    const { fetch, calls } = recordingFetch(stalled);
+    const planner = createPlanner({ client: sdkClient(fetch), model: 'claude-opus-5-5', catalog, deadlineMs: 100 });
+    await expect(planner(ITEM)).resolves.toEqual({ ok: false, reason: REASON.timeout });
+    expect(calls).toHaveLength(1);
+    expect(log.errorCalls()).toEqual([['Claude planner failed (timed out): deadline passed']]);
+  });
+
+  it('a 200 body that is not JSON is an unusable answer, and the body is never logged', async () => {
+    const log = spyConsole();
+    const { fetch } = recordingFetch(
+      () => new Response(`Echo ${CLAUDE_KEY} private item text`, { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    );
+    const planner = createPlanner({ client: sdkClient(fetch), model: 'claude-opus-5-5', catalog });
+    await expect(planner(ITEM)).resolves.toEqual({ ok: false, reason: REASON.unusable });
+    const logged = log.all();
+    expect(logged).not.toContain(CLAUDE_KEY);
+    expect(logged).not.toContain('private item');
+    expect(logged).not.toContain('Echo');
   });
 });

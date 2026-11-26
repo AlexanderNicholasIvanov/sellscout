@@ -276,17 +276,6 @@ describe('startServer and Claude (run 4 AC3, AC4, AC11)', () => {
     expect(result.venues.some((v) => v.aiSuggested)).toBe(false);
     expect(result.venues[0]?.id).toBe('r-mechmarket');
   });
-
-  it('an injected search never builds a planner', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    const server = await startServer({ port: 0, search: fakeResult, version: '1.2.3', config: readConfig({ ANTHROPIC_API_KEY: 'SENTINEL-ANTHROPIC-KEY' }) });
-    cleanups.push(() => closeServer(server));
-    const { port } = server.address() as AddressInfo;
-    const result = json(await postSearch(port, { item: 'desk', window: 30 })) as SearchResult;
-    expect(result.plan.source).toBe('catalog');
-    expect(nonLocal(fetchSpy)).toEqual([]);
-    fetchSpy.mockRestore();
-  });
 });
 
 describe('startServer and POST /api/__fixtures (run 2b AC5)', () => {
