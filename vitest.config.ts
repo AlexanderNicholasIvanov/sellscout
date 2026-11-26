@@ -11,6 +11,7 @@ export default defineConfig({
           environment: 'node',
           include: ['tests/**/*.test.ts'],
           exclude: ['e2e/**', 'node_modules/**'],
+          setupFiles: ['tests/setup/no-network.ts'],
         },
       },
       {

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { metros } from '../../server/data/metros.ts';
 import { createSearch, searchVenues } from '../../server/venues/index.ts';
 import { createMetroResolver } from '../../server/venues/location.ts';
-import type { SearchResult } from '../../server/types.ts';
+import type { VenueSearchResult } from '../../server/types.ts';
 import { fixtureCatalog, fixtureMetros } from './fixtures.ts';
 
-const craigslistOf = (result: SearchResult) => result.venues.filter((v) => v.id === 'craigslist');
+const craigslistOf = (result: VenueSearchResult) => result.venues.filter((v) => v.id === 'craigslist');
 
 describe('metro lookup (real metro table)', () => {
   const resolve = createMetroResolver(metros);
@@ -45,7 +45,7 @@ describe('metro lookup (real metro table)', () => {
 
 describe('location in search (AC14)', () => {
   it.each(['Seattle', 'seattle, wa', '98101'])('%j gives the Seattle Craigslist links, once', (location) => {
-    const result = searchVenues({ item: 'mechanical keyboard', location, delivery: 'both' });
+    const result = searchVenues({ item: 'mechanical keyboard', location, delivery: 'both', window: 30 });
     const craigslist = craigslistOf(result);
     expect(craigslist).toHaveLength(1);
     expect(craigslist[0].url).toBe('https://seattle.craigslist.org/');
@@ -56,7 +56,7 @@ describe('location in search (AC14)', () => {
   });
 
   it('"Nowhereville" keeps the generic links and adds exactly the location notice', () => {
-    const result = searchVenues({ item: 'mechanical keyboard', location: 'Nowhereville', delivery: 'both' });
+    const result = searchVenues({ item: 'mechanical keyboard', location: 'Nowhereville', delivery: 'both', window: 30 });
     expect(result.notices).toEqual(['Couldn\'t match "Nowhereville" to a city; local links are generic.']);
     const craigslist = craigslistOf(result);
     expect(craigslist).toHaveLength(1);
@@ -65,7 +65,7 @@ describe('location in search (AC14)', () => {
   });
 
   it('quotes the location trimmed, as typed', () => {
-    const result = searchVenues({ item: 'asdfgh', location: '  Smallville, KS ', delivery: 'both' });
+    const result = searchVenues({ item: 'asdfgh', location: '  Smallville, KS ', delivery: 'both', window: 30 });
     expect(result.notices).toEqual([
       'No specialist boards matched "asdfgh". Try more specific words (brand, model, type).',
       'Couldn\'t match "Smallville, KS" to a city; local links are generic.',
@@ -73,23 +73,23 @@ describe('location in search (AC14)', () => {
   });
 
   it('a blank location adds nothing and no notice', () => {
-    const none = searchVenues({ item: 'mechanical keyboard', delivery: 'both' });
+    const none = searchVenues({ item: 'mechanical keyboard', delivery: 'both', window: 30 });
     for (const location of ['', '   ']) {
-      const blank = searchVenues({ item: 'mechanical keyboard', location, delivery: 'both' });
+      const blank = searchVenues({ item: 'mechanical keyboard', location, delivery: 'both', window: 30 });
       expect(blank).toEqual(none);
       expect(blank.notices).toEqual([]);
     }
   });
 
   it('with no location the Craigslist link is the generic sites page', () => {
-    const craigslist = craigslistOf(searchVenues({ item: 'mechanical keyboard', delivery: 'both' }));
+    const craigslist = craigslistOf(searchVenues({ item: 'mechanical keyboard', delivery: 'both', window: 30 }));
     expect(craigslist).toHaveLength(1);
     expect(craigslist[0].url).toBe('https://www.craigslist.org/about/sites');
     expect(craigslist[0].searchUrl).toBeUndefined();
   });
 
   it('leaves Facebook Marketplace generic when a metro matches', () => {
-    const result = searchVenues({ item: 'sofa', location: 'Seattle', delivery: 'both' });
+    const result = searchVenues({ item: 'sofa', location: 'Seattle', delivery: 'both', window: 30 });
     expect(result.venues.find((v) => v.id === 'facebook-marketplace')?.searchUrl).toBe(
       'https://www.facebook.com/marketplace/search/?query=sofa',
     );
@@ -100,7 +100,7 @@ describe('metro buy/sell subreddit (AC15, fixture metro)', () => {
   const search = createSearch({ catalog: fixtureCatalog, metros: fixtureMetros });
 
   it('adds the subreddit right after the specialists, with why "Local to <metro>"', () => {
-    const result = search({ item: 'mechanical keyboard', location: 'Gotham', delivery: 'both' });
+    const result = search({ item: 'mechanical keyboard', location: 'Gotham', delivery: 'both', window: 30 });
     expect(result.venues.map((v) => v.id)).toEqual([
       'kb-a', 'kb-b', 'music-sub', 'metro-gotham-subreddit', 'ebay', 'craigslist', 'facebook-marketplace',
     ]);
@@ -125,23 +125,23 @@ describe('metro buy/sell subreddit (AC15, fixture metro)', () => {
 
   it('matches the metro by ZIP and by a state-qualified alias', () => {
     for (const location of ['12345', 'Arlington, Virginia']) {
-      const result = search({ item: 'camera', location, delivery: 'local' });
+      const result = search({ item: 'camera', location, delivery: 'local', window: 30 });
       expect(result.venues.map((v) => v.id)).toContain('metro-gotham-subreddit');
     }
   });
 
   it('is excluded with delivery "ship"', () => {
-    const result = search({ item: 'mechanical keyboard', location: 'Gotham', delivery: 'ship' });
+    const result = search({ item: 'mechanical keyboard', location: 'Gotham', delivery: 'ship', window: 30 });
     expect(result.venues.map((v) => v.id)).not.toContain('metro-gotham-subreddit');
   });
 
   it('appears even when no category matches, before the general venues', () => {
-    const result = search({ item: 'asdfgh', location: 'gotham', delivery: 'local' });
+    const result = search({ item: 'asdfgh', location: 'gotham', delivery: 'local', window: 30 });
     expect(result.venues.map((v) => v.id)).toEqual(['metro-gotham-subreddit', 'craigslist', 'facebook-marketplace']);
   });
 
   it('adds no subreddit for a metro without one', () => {
-    const result = search({ item: 'camera', location: 'Metropolis', delivery: 'both' });
+    const result = search({ item: 'camera', location: 'Metropolis', delivery: 'both', window: 30 });
     expect(result.venues.filter((v) => v.kind === 'subreddit')).toEqual([]);
     expect(result.venues.find((v) => v.id === 'craigslist')?.url).toBe('https://metropolis.craigslist.org/');
   });
@@ -155,7 +155,7 @@ describe('a typed state must match the metro (review round 1)', () => {
     'Orange, NJ', 'Portland Maine', 'Seattle, OR',
   ])('%j does not resolve and gets the notice', (location) => {
     expect(resolve(location)).toBeUndefined();
-    const result = searchVenues({ item: 'mechanical keyboard', location, delivery: 'both' });
+    const result = searchVenues({ item: 'mechanical keyboard', location, delivery: 'both', window: 30 });
     expect(result.notices).toEqual([`Couldn't match "${location}" to a city; local links are generic.`]);
     expect(result.venues.find((v) => v.id === 'craigslist')?.url).toBe('https://www.craigslist.org/about/sites');
   });
@@ -187,7 +187,7 @@ describe('a typed state must match the metro (review round 1)', () => {
 describe('integration review fixes', () => {
   it('matches typographic apostrophes ("Lee’s Summit", "O’Fallon, MO")', () => {
     for (const place of ['Lee’s Summit', 'O’Fallon, MO']) {
-      const result = searchVenues({ item: 'desk', location: place, delivery: 'both' });
+      const result = searchVenues({ item: 'desk', location: place, delivery: 'both', window: 30 });
       expect(result.notices).toEqual([]);
       const craigslist = result.venues.find((v) => v.url.includes('craigslist.org') && !v.url.includes('www.'));
       expect(craigslist).toBeDefined();
@@ -195,9 +195,9 @@ describe('integration review fixes', () => {
   });
 
   it('does not show the unknown-location notice when delivery is ship (no local venues)', () => {
-    const ship = searchVenues({ item: 'desk', location: 'Nowhereville', delivery: 'ship' });
+    const ship = searchVenues({ item: 'desk', location: 'Nowhereville', delivery: 'ship', window: 30 });
     expect(ship.notices.some((n) => n.startsWith("Couldn't match"))).toBe(false);
-    const both = searchVenues({ item: 'desk', location: 'Nowhereville', delivery: 'both' });
+    const both = searchVenues({ item: 'desk', location: 'Nowhereville', delivery: 'both', window: 30 });
     expect(both.notices).toContain('Couldn\'t match "Nowhereville" to a city; local links are generic.');
   });
 });

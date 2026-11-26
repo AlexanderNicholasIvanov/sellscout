@@ -7,7 +7,7 @@ const readRepoFile = (name: string) => readFileSync(fileURLToPath(new URL(`../${
 
 describe('smoke', () => {
   it('searchVenues collapses whitespace in the search term', () => {
-    const result = searchVenues({ item: '  vintage   road\tbike \n ', delivery: 'both' });
+    const result = searchVenues({ item: '  vintage   road\tbike \n ', delivery: 'both', window: 30 });
     expect(result.plan.searchTerm).toBe('vintage road bike');
     expect(result.plan.source).toBe('catalog');
   });

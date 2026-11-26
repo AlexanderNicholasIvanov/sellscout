@@ -2,11 +2,43 @@
 // guard that aborts every request not addressed to the local Playwright server (AC28).
 import { readFileSync } from 'node:fs';
 import type { Page, Request, Route } from '@playwright/test';
-import type { SearchInput, SearchResult } from '../../server/types.ts';
+import type { BuyersResult, SearchInput, SearchResult, StatusResponse } from '../../server/types.ts';
 
 export const LOCAL_HOST = '127.0.0.1:5181';
 
-export type FixtureName = 'mechanical-keyboard' | 'no-match' | 'location-notice';
+export type FixtureName =
+  | 'mechanical-keyboard'
+  | 'no-match'
+  | 'location-notice'
+  | 'buyers-ok'
+  | 'buyers-none'
+  | 'buyers-unavailable';
+
+function isBuyersResult(b: BuyersResult | undefined): boolean {
+  return (
+    typeof b === 'object' &&
+    b !== null &&
+    ['ok', 'unavailable', 'disabled'].includes(b.status) &&
+    (b.reason === undefined || typeof b.reason === 'string') &&
+    typeof b.term === 'string' &&
+    [7, 30, 90].includes(b.windowDays) &&
+    Array.isArray(b.posts) &&
+    b.posts.every(
+      (p) =>
+        typeof p.id === 'string' &&
+        typeof p.title === 'string' &&
+        typeof p.subreddit === 'string' &&
+        typeof p.author === 'string' &&
+        typeof p.createdUtc === 'number' &&
+        typeof p.score === 'number' &&
+        typeof p.numComments === 'number' &&
+        typeof p.snippet === 'string' &&
+        typeof p.url === 'string',
+    ) &&
+    Array.isArray(b.links) &&
+    b.links.every((l) => typeof l.label === 'string' && typeof l.url === 'string')
+  );
+}
 
 function assertSearchResult(name: string, value: unknown): asserts value is SearchResult {
   const v = value as SearchResult;
@@ -16,6 +48,7 @@ function assertSearchResult(name: string, value: unknown): asserts value is Sear
     v.plan?.source === 'catalog' &&
     Array.isArray(v.plan.categories) &&
     typeof v.plan.searchTerm === 'string' &&
+    isBuyersResult(v.buyers) &&
     Array.isArray(v.notices) &&
     v.notices.every((n) => typeof n === 'string') &&
     Array.isArray(v.venues) &&
@@ -85,4 +118,13 @@ export async function mockSearch(
     }
   });
   return { calls, blocked };
+}
+
+/** Intercepts GET /api/status with the given status body, or with a bare HTTP status code. */
+export async function mockStatus(page: Page, respond: Omit<StatusResponse, 'version'> | number): Promise<void> {
+  await page.route('**/api/status', (route) =>
+    typeof respond === 'number'
+      ? route.fulfill({ status: respond, json: { error: 'Internal error' } })
+      : route.fulfill({ status: 200, json: { version: '0.1.0', ...respond } }),
+  );
 }

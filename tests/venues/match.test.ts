@@ -52,7 +52,7 @@ describe('keyword matching', () => {
 
 describe('ranking rules (fixture catalog)', () => {
   it('orders by best category score, then specialist before general', () => {
-    const result = search({ item: 'mechanical keyboard', delivery: 'both' });
+    const result = search({ item: 'mechanical keyboard', delivery: 'both', window: 30 });
     // kb scores 2 (keyboard + mechanical keyboard), music scores 1 (keyboard).
     expect(ids(result.venues)).toEqual(['kb-a', 'kb-b', 'music-sub', 'ebay', 'craigslist', 'facebook-marketplace']);
     expect(result.plan.categories).toEqual([
@@ -63,20 +63,20 @@ describe('ranking rules (fixture catalog)', () => {
 
   it('breaks score ties by catalog order', () => {
     // "keyboard mechanical" is not the phrase, so kb and music both score 1: catalog order wins.
-    const result = search({ item: 'keyboard mechanical', delivery: 'both' });
+    const result = search({ item: 'keyboard mechanical', delivery: 'both', window: 30 });
     expect(ids(result.venues).slice(0, 3)).toEqual(['music-sub', 'kb-a', 'kb-b']);
     expect(result.plan.categories.map((c) => c.id)).toEqual(['kb', 'music']);
   });
 
   it('lists matched keywords in why, and a fixed why for general venues', () => {
-    const result = search({ item: 'Mechanical keyboard with keycaps', delivery: 'both' });
+    const result = search({ item: 'Mechanical keyboard with keycaps', delivery: 'both', window: 30 });
     expect(result.venues.find((v) => v.id === 'kb-a')?.why).toEqual(['mechanical keyboard', 'keycap']);
     expect(result.venues.find((v) => v.id === 'music-sub')?.why).toEqual(['keyboard']);
     expect(result.venues.find((v) => v.id === 'ebay')?.why).toEqual(['Sells almost anything']);
   });
 
   it('matches plurals', () => {
-    const result = search({ item: 'two cameras and lenses', delivery: 'both' });
+    const result = search({ item: 'two cameras and lenses', delivery: 'both', window: 30 });
     expect(result.venues[0]).toMatchObject({ id: 'photo-shop', why: ['camera', 'lens'] });
   });
 });
@@ -86,7 +86,7 @@ describe('ranking on the real catalog (AC9)', () => {
   const firstGeneral = (venues: Venue[]) => venues.findIndex((v) => generalIds.has(v.id));
 
   it('"Sony A7 III body" ranks r/photomarket above every general venue', () => {
-    const { venues, plan } = searchVenues({ item: 'Sony A7 III body', delivery: 'both' });
+    const { venues, plan } = searchVenues({ item: 'Sony A7 III body', delivery: 'both', window: 30 });
     const photomarket = venues.findIndex((v) => v.name === 'r/photomarket');
     expect(photomarket).toBeGreaterThanOrEqual(0);
     expect(photomarket).toBeLessThan(firstGeneral(venues));
@@ -95,13 +95,13 @@ describe('ranking on the real catalog (AC9)', () => {
   });
 
   it('"mechanical keyboard" puts r/mechmarket first among subreddits', () => {
-    const { venues } = searchVenues({ item: 'mechanical keyboard', delivery: 'both' });
+    const { venues } = searchVenues({ item: 'mechanical keyboard', delivery: 'both', window: 30 });
     expect(venues.filter((v) => v.kind === 'subreddit')[0]?.name).toBe('r/mechmarket');
     expect(venues[0].name).toBe('r/mechmarket');
   });
 
   it('"RTX 3080 graphics card" includes r/hardwareswap above the general venues', () => {
-    const { venues } = searchVenues({ item: 'RTX 3080 graphics card', delivery: 'both' });
+    const { venues } = searchVenues({ item: 'RTX 3080 graphics card', delivery: 'both', window: 30 });
     const hardwareswap = venues.findIndex((v) => v.name === 'r/hardwareswap');
     expect(hardwareswap).toBeGreaterThanOrEqual(0);
     expect(hardwareswap).toBeLessThan(firstGeneral(venues));
@@ -109,34 +109,34 @@ describe('ranking on the real catalog (AC9)', () => {
   });
 
   it('"Two KEYBOARDS" matches the keyboard category (case + plural)', () => {
-    const { plan, venues } = searchVenues({ item: 'Two KEYBOARDS', delivery: 'both' });
+    const { plan, venues } = searchVenues({ item: 'Two KEYBOARDS', delivery: 'both', window: 30 });
     expect(plan.categories.map((c) => c.id)).toContain('keyboards');
     expect(venues.map((v) => v.name)).toContain('r/mechmarket');
   });
 
   it('"watchdog timer" does not match the keyword watch', () => {
-    const { plan, venues } = searchVenues({ item: 'watchdog timer', delivery: 'both' });
+    const { plan, venues } = searchVenues({ item: 'watchdog timer', delivery: 'both', window: 30 });
     expect(plan.categories.map((c) => c.id)).not.toContain('watches');
     expect(venues.map((v) => v.name)).not.toContain('r/Watchexchange');
   });
 
   it('"Pokémon Charizard card" matches the trading-card categories despite the accent', () => {
-    const { plan, venues } = searchVenues({ item: 'Pokémon Charizard card', delivery: 'both' });
+    const { plan, venues } = searchVenues({ item: 'Pokémon Charizard card', delivery: 'both', window: 30 });
     expect(plan.categories.map((c) => c.id)).toEqual(expect.arrayContaining(['pokemon', 'trading-cards']));
     expect(venues[0].name).toBe('r/pkmntcgtrades');
     expect(plan.searchTerm).toBe('Pokémon Charizard card');
   });
 
   it('"rolex watches" matches watches via the plural', () => {
-    const { plan, venues } = searchVenues({ item: 'two Rolex watches', delivery: 'both' });
+    const { plan, venues } = searchVenues({ item: 'two Rolex watches', delivery: 'both', window: 30 });
     expect(plan.categories[0].id).toBe('watches');
     expect(venues[0].why).toEqual(expect.arrayContaining(['watch', 'rolex']));
   });
 });
 
 describe('ranking regressions on the real catalog (review round 1)', () => {
-  const names = (item: string) => searchVenues({ item, delivery: 'both' }).venues.map((v) => v.name);
-  const categoriesOf = (item: string) => searchVenues({ item, delivery: 'both' }).plan.categories.map((c) => c.id);
+  const names = (item: string) => searchVenues({ item, delivery: 'both', window: 30 }).venues.map((v) => v.name);
+  const categoriesOf = (item: string) => searchVenues({ item, delivery: 'both', window: 30 }).plan.categories.map((c) => c.id);
 
   it.each(['Samsung OLED TV', 'DJI drone', 'Kindle e-reader'])(
     '%j does not surface Apple-only or phone trade-in boards at the top',
@@ -193,7 +193,7 @@ describe('ranking regressions on the real catalog (review round 1)', () => {
   });
 
   it('"Wahoo bike trainer" ranks bikes first', () => {
-    const { plan, venues } = searchVenues({ item: 'Wahoo bike trainer', delivery: 'both' });
+    const { plan, venues } = searchVenues({ item: 'Wahoo bike trainer', delivery: 'both', window: 30 });
     expect(plan.categories[0].id).toBe('bikes');
     expect(plan.categories.map((c) => c.id)).not.toContain('sneakers');
     expect(venues[0].categoryIds).toContain('bikes');

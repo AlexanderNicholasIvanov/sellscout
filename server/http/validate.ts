@@ -1,8 +1,10 @@
-import type { Delivery, SearchInput } from '../types.ts';
+import type { BuyerWindow, Delivery, SearchInput } from '../types.ts';
 
 export const ITEM_MAX = 200;
 export const LOCATION_MAX = 100;
 const DELIVERIES: readonly Delivery[] = ['ship', 'local', 'both'];
+const WINDOWS: readonly BuyerWindow[] = [7, 30, 90];
+export const DEFAULT_WINDOW: BuyerWindow = 30;
 
 export type Validation<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -30,7 +32,7 @@ export function parseSearchRequest(text: string): Validation<SearchInput> {
   }
   if (!isRecord(data)) return { ok: false, error: 'Body must be a JSON object' };
 
-  const { item, location, delivery } = data;
+  const { item, location, delivery, window: windowDays } = data;
 
   if (item === undefined) return { ok: false, error: "Describe what you're selling (item is required)" };
   if (typeof item !== 'string') return { ok: false, error: 'item must be a string' };
@@ -56,7 +58,15 @@ export function parseSearchRequest(text: string): Validation<SearchInput> {
     chosenDelivery = delivery as Delivery;
   }
 
-  const value: SearchInput = { item: trimmedItem, delivery: chosenDelivery };
+  let chosenWindow: BuyerWindow = DEFAULT_WINDOW;
+  if (windowDays !== undefined) {
+    if (typeof windowDays !== 'number' || !(WINDOWS as readonly number[]).includes(windowDays)) {
+      return { ok: false, error: 'window must be 7, 30 or 90' };
+    }
+    chosenWindow = windowDays as BuyerWindow;
+  }
+
+  const value: SearchInput = { item: trimmedItem, delivery: chosenDelivery, window: chosenWindow };
   if (trimmedLocation !== undefined) value.location = trimmedLocation;
   return { ok: true, value };
 }

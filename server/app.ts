@@ -14,6 +14,8 @@ export interface AppOptions {
   /** The port the server listens on; the Host header must name it. */
   port: number;
   distDir: string;
+  /** What GET /api/status reports. Default: Reddit off, fixtures off. */
+  status?: { redditAuth: boolean; fixtures: boolean };
 }
 
 export type RequestHandler = (req: IncomingMessage, res: ServerResponse) => void;
@@ -41,7 +43,7 @@ export function createApp(opts: AppOptions): RequestHandler {
       sendJson(res, 400, error(parsed.error));
       return;
     }
-    sendJson(res, 200, opts.search(parsed.value));
+    sendJson(res, 200, await opts.search(parsed.value));
   }
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -56,7 +58,11 @@ export function createApp(opts: AppOptions): RequestHandler {
     if (pathname === '/api' || pathname.startsWith('/api/')) {
       if (pathname === '/api/status') {
         if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
-        const status: StatusResponse = { version: opts.version };
+        const status: StatusResponse = {
+          version: opts.version,
+          redditAuth: opts.status?.redditAuth === true,
+          fixtures: opts.status?.fixtures === true,
+        };
         sendJson(res, 200, status);
         return;
       }

@@ -4,8 +4,13 @@ Describe something you want to sell. sellscout lists the boards, marketplaces an
 where it would sell, such as specialist subreddits, forums, dealer buy-backs and local
 classifieds for your city. Each entry shows why it fits, its fees, posting tips and links.
 
-It runs on your own machine. In this version nothing leaves it: there are no accounts, no API
-keys and no calls to other sites.
+It also shows **People looking for it**: recent Reddit posts from people who want to buy the
+item ("WTB", "ISO", "looking for"), plus ready-made links to search Reddit and Craigslist
+yourself.
+
+It runs on your own machine. Without Reddit app keys nothing leaves it: no accounts and no
+calls to other sites. With keys, Reddit receives the search term, the matched catalog subreddit names
+and a User-Agent naming sellscout (and your Reddit username, if you set one); see [Reddit](#reddit).
 
 ## Setup
 
@@ -30,17 +35,46 @@ another program already has that port: stop it, or start sellscout with a differ
 For development, `npm run dev` runs the API server with `--watch` on 5180 and the Vite dev
 server on 5173, which proxies `/api` to the API. Ctrl+C stops both.
 
+`npm start` and `npm run dev` load `.env` from the repo root when it exists (copy
+`.env.example`). It holds the optional [Reddit](#reddit) keys.
+
+### Fixture mode
+
+Fixture mode serves canned Reddit posts and blocks every outbound request. It is for demos and
+the e2e tests, and needs no keys:
+
+```sh
+SELLSCOUT_FIXTURES=1 npm start
+SELLSCOUT_FIXTURES=1 SELLSCOUT_FIXTURE_DELAY_MS=1500 npm start   # slow answers
+```
+
+In PowerShell: `$env:SELLSCOUT_FIXTURES=1; npm start`.
+
+- Set these variables in the shell. In `.env` they have no effect.
+- In fixture mode `.env` is not loaded, any Reddit keys are ignored and every outbound `fetch`
+  fails with "Outbound request blocked in fixture mode".
+- The header shows "Reddit: fixture" and "Fixture data".
+- Try "mechanical keyboard", "RTX 3080" or "Sony A7 III".
+- The items `reddit-403`, `reddit-429`, `reddit-html` and `reddit-timeout` show those failures.
+- `SELLSCOUT_FIXTURE_DELAY_MS` (a whole number of milliseconds, default 0) delays each canned
+  answer.
+
 ### Using it
 
 The UI is a single page:
 1. Describe the item.
 2. Optionally give a US city or ZIP.
 3. Choose **Ship it**, **Local pickup** or **Both**.
-4. Press **Search**.
+4. Choose how far back to look for buyer posts: 7, 30 (the default) or 90 days.
+5. Press **Search**.
 
 Results show any notices first, then what the item was understood as, then the ranked boards
 under **Where to post it**. Each board lists why it fits, its fees, collapsible posting tips
 and links that open in a new tab.
+
+**People looking for it** comes next. It shows the Reddit search term and, with Reddit keys,
+the matching posts: title, subreddit, author, age, score, comments and the start of the text.
+Its **Look yourself** links work with or without keys. Header chips show whether Reddit is on.
 
 The page works with the keyboard alone and on narrow (375 px) screens.
 
@@ -60,6 +94,8 @@ to `main`. No test makes a real network call:
   `e2e/fixtures/`.
 - `e2e/live.spec.ts` uses the real server and catalog.
 - Both block every request that isn't to `127.0.0.1:5181`.
+- The Playwright server runs in [fixture mode](#fixture-mode), and the Reddit unit tests use a
+  fake `fetch`.
 
 ## Editing the catalog and metros
 
@@ -90,11 +126,64 @@ to `main`. No test makes a real network call:
 `npm test` checks both files: unique ids, https URLs, the `{q}` placeholder, and no shared ZIP
 prefixes or aliases.
 
+## Reddit
+
+**People looking for it** uses Reddit's official API, which needs app keys. Anonymous access is
+shut off: keyless requests to Reddit's JSON pages got HTTP 403 (checked on 2026-11-25). Without
+keys sellscout makes no Reddit request at all. It says "Add Reddit app keys to see live posts
+here" and still gives the look-yourself links.
+
+**Getting keys**
+1. Sign in to Reddit and open <https://www.reddit.com/prefs/apps>.
+2. Create an app of type **script**. sellscout uses app-only access: it never signs in as you
+   and never posts.
+3. Reddit approves new API apps by hand under its Responsible Builder Policy, so access can take
+   a while or be refused.
+4. Put the keys in `.env` in the repo root (see `.env.example`), then restart sellscout:
+
+```sh
+REDDIT_CLIENT_ID=<the id shown under the app name>
+REDDIT_CLIENT_SECRET=<the secret>
+REDDIT_USERNAME=<your Reddit username, optional, used only in the User-Agent>
+```
+
+The header then shows "Reddit: on". `.env` is git-ignored: never commit it or paste keys into
+an issue.
+
+**What is searched**
+- The search term, plus the names of the matched catalog subreddits and a User-Agent with
+  your platform, the sellscout version and `REDDIT_USERNAME` if set. The term is the item text up to the first `,` `;` `(` `|` or ` - `, without
+  filler words such as "the", "used" or "mint", and at most 6 words. "Sony A7 III body, low
+  shutter count" becomes "Sony A7 III".
+- One site-wide search for `(WTB OR ISO OR "looking for") <term>`, plus one in each of the
+  item's top catalog subreddits (up to 3), such as r/hardwareswap for "RTX 3080".
+- Your location is never sent to Reddit. It is used only for the Craigslist link.
+- Results are filtered on your machine. A trade post (`[H] ... [W] ...`) counts only when the
+  item is in the `[W]` (want) part; other posts need a buy phrase such as "WTB" or "looking
+  for". NSFW, pinned and deleted posts are dropped. It is a keyword rule, so expect the odd
+  false match.
+
+**Rate limits**
+- At most 4 searches per item, one at a time and at least 500 ms apart.
+- sellscout follows Reddit's `X-Ratelimit-*` headers. When the allowance runs out, or Reddit
+  answers HTTP 429, it stops asking until the reset (60 s if Reddit gives none) and says
+  "Reddit rate limit reached; try again in N s".
+- Each request gives up after 10 s, and the whole Reddit search after 25 s.
+
+**Look yourself.** Every result has links to Reddit's own search (site-wide and per subreddit)
+and to Craigslist's "wanted" section for your city (Craigslist's city list when no city
+matched; no Craigslist link with "Ship it"). They need no keys.
+
 ## Privacy
 
 - Everything runs locally and the server listens on 127.0.0.1 only. It rejects requests whose
   `Host` header isn't its own and sends no CORS headers, so other websites can't drive it.
-- The item text and location are processed on your machine and are not sent anywhere.
+- The item text and location are processed on your machine.
+- The buyer search term (derived from the item text) is sent to Reddit's API only when Reddit
+  keys are set. Without keys nothing is sent. The location is never sent to Reddit or anywhere
+  else; it only picks local boards and the Craigslist link.
+- Reddit keys stay in `.env` and in the server's memory. They are never logged or sent to the
+  browser.
 - Your last location is kept only in this browser's localStorage (`sellscout.location.v1`) and
   prefilled next time. Clearing the site data removes it.
 - Links to other sites open in a new tab with `rel="noopener noreferrer"`. sellscout never
@@ -102,11 +191,12 @@ prefixes or aliases.
 
 ## Roadmap
 
-sellscout is being built in four steps, each its own pull request:
-1. **Where to post it.** Board catalog, local boards for your city, the app and CI (this
-   version).
-2. **People looking for it.** Live "WTB / ISO / looking for" posts from Reddit (no key needed,
-   optional Reddit credentials), plus saved searches that mark new posts.
+sellscout is being built in steps, each its own pull request:
+1. **Where to post it.** Board catalog, local boards for your city, the app and CI (done).
+2. **People looking for it.**
+   - 2a. Reddit buyer posts with your own Reddit app keys, look-yourself links, fixture mode
+     and status chips (done, this version).
+   - 2b. Saved searches, with "New" badges on posts you haven't seen yet (next).
 3. **Similar listings on eBay.** Active listings and a typical asking-price range (optional free
    eBay developer key).
 4. **Smarter matching with Claude.** With your own `ANTHROPIC_API_KEY`, Claude picks boards and

@@ -1,4 +1,13 @@
-import type { Catalog, CatalogVenue, Delivery, Metro, SearchFn, SearchResult, Venue } from '../types.ts';
+import type {
+  BuyerContext,
+  Catalog,
+  CatalogVenue,
+  Delivery,
+  Metro,
+  Venue,
+  VenueSearchFn,
+  VenueSearchResult,
+} from '../types.ts';
 import { craigslistUrls, fillTemplate, subredditUrls } from './links.ts';
 import { createMetroResolver } from './location.ts';
 import { compileCategories, matchCategories } from './match.ts';
@@ -13,6 +22,8 @@ export const unknownLocationNotice = (location: string): string =>
 
 const CRAIGSLIST_SUBDOMAIN = /^[a-z]+$/;
 const SUBREDDIT_NAME = /^\w+$/;
+/** Most catalog subreddits handed to the buyer search. */
+export const CONTEXT_SUBREDDITS_MAX = 3;
 
 /**
  * Drops matched keywords that are whole words inside another matched keyword, so "Why" reads
@@ -68,12 +79,16 @@ function metroSubredditVenue(metro: Metro, name: string, searchTerm: string): Ve
  * Builds the pure venue search over a catalog and metro table. No I/O: every venue is a link.
  * Order: matched specialists (best category score desc, then catalog order), then the local
  * metro subreddit (if any), then the general venues in catalog order; finally the delivery filter.
+ *
+ * `context` is for the buyer search only: the matched catalog subreddits in rank order (taken
+ * before the delivery filter, never the metro subreddit, at most 3) and the metro's Craigslist
+ * subdomain.
  */
-export function createSearch({ catalog, metros }: { catalog: Catalog; metros: Metro[] }): SearchFn {
+export function createSearch({ catalog, metros }: { catalog: Catalog; metros: Metro[] }): VenueSearchFn {
   const compiled = compileCategories(catalog.categories);
   const resolveMetro = createMetroResolver(metros);
 
-  return (input): SearchResult => {
+  return (input): VenueSearchResult => {
     const item = typeof input?.item === 'string' ? input.item : '';
     const searchTerm = item.trim().replace(/\s+/g, ' ');
     const location = typeof input?.location === 'string' ? input.location.trim() : '';
@@ -116,6 +131,15 @@ export function createSearch({ catalog, metros }: { catalog: Catalog; metros: Me
       local.push(metroSubredditVenue(metro, metro.buySellSubreddit, searchTerm));
     }
 
+    const context: BuyerContext = {
+      subreddits: specialists
+        .filter((s) => s.venue.kind === 'subreddit')
+        .map((s) => s.venue.name.replace(/^r\//, ''))
+        .filter((name) => SUBREDDIT_NAME.test(name))
+        .slice(0, CONTEXT_SUBREDDITS_MAX),
+    };
+    if (metro && CRAIGSLIST_SUBDOMAIN.test(metro.craigslist)) context.craigslist = metro.craigslist;
+
     const venues = [...specialists.map((s) => s.venue), ...local, ...generals].filter((venue) =>
       keepForDelivery(venue, delivery),
     );
@@ -128,6 +152,7 @@ export function createSearch({ catalog, metros }: { catalog: Catalog; metros: Me
       },
       venues,
       notices,
+      context,
     };
   };
 }
