@@ -14,6 +14,16 @@ export const unknownLocationNotice = (location: string): string =>
 const CRAIGSLIST_SUBDOMAIN = /^[a-z]+$/;
 const SUBREDDIT_NAME = /^\w+$/;
 
+/**
+ * Drops matched keywords that are whole words inside another matched keyword, so "Why" reads
+ * "sony a7, a7 iii" rather than "sony a7, a7, a7 iii". Display only; scoring is unchanged.
+ */
+export function mostSpecific(keywords: string[]): string[] {
+  return keywords.filter(
+    (k) => !keywords.some((other) => other !== k && ` ${other} `.includes(` ${k} `)),
+  );
+}
+
 function toVenue(venue: CatalogVenue, searchTerm: string, why: string[]): Venue {
   const out: Venue = {
     id: venue.id,
@@ -93,7 +103,7 @@ export function createSearch({ catalog, metros }: { catalog: Catalog; metros: Me
         score = Math.max(score, match.score);
         for (const keyword of match.keywords) if (!why.includes(keyword)) why.push(keyword);
       }
-      if (score > 0) specialists.push({ venue: toVenue(source, searchTerm, why), score, index });
+      if (score > 0) specialists.push({ venue: toVenue(source, searchTerm, mostSpecific(why)), score, index });
     });
     specialists.sort((a, b) => b.score - a.score || a.index - b.index);
 

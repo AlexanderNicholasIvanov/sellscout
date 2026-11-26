@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { catalog } from '../../server/data/catalog.ts';
 import { createSearch, searchVenues } from '../../server/venues/index.ts';
+import { mostSpecific } from '../../server/venues/search.ts';
 import type { Delivery, SearchInput } from '../../server/types.ts';
 import { fixtureCatalog, fixtureMetros } from './fixtures.ts';
 
@@ -118,5 +119,22 @@ describe('purity and robustness', () => {
     const second = searchVenues({ item: 'mechanical keyboard', delivery: 'both' });
     expect(second.venues[0].tips).not.toContain('mutated');
     expect(second.venues[0].categoryIds).not.toContain('mutated');
+  });
+});
+
+describe('why lists the most specific matched keywords', () => {
+  it('drops keywords contained in a longer matched keyword', () => {
+    expect(mostSpecific(['sony a7', 'a7', 'a7 iii'])).toEqual(['sony a7', 'a7 iii']);
+    expect(mostSpecific(['camera', 'lens'])).toEqual(['camera', 'lens']);
+    // whole words only: "ram" is not inside "ramen"
+    expect(mostSpecific(['ram', 'ramen'])).toEqual(['ram', 'ramen']);
+  });
+
+  it('shows no duplicate sub-keywords for "Sony A7 III body" on the real catalog', () => {
+    const photo = searchVenues({ item: 'Sony A7 III body', delivery: 'both' }).venues.find(
+      (v) => v.name === 'r/photomarket',
+    );
+    expect(photo?.why).toContain('a7 iii');
+    expect(photo?.why).not.toContain('a7');
   });
 });

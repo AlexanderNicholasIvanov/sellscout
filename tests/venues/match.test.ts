@@ -70,7 +70,7 @@ describe('ranking rules (fixture catalog)', () => {
 
   it('lists matched keywords in why, and a fixed why for general venues', () => {
     const result = search({ item: 'Mechanical keyboard with keycaps', delivery: 'both' });
-    expect(result.venues.find((v) => v.id === 'kb-a')?.why).toEqual(['keyboard', 'mechanical keyboard', 'keycap']);
+    expect(result.venues.find((v) => v.id === 'kb-a')?.why).toEqual(['mechanical keyboard', 'keycap']);
     expect(result.venues.find((v) => v.id === 'music-sub')?.why).toEqual(['keyboard']);
     expect(result.venues.find((v) => v.id === 'ebay')?.why).toEqual(['Sells almost anything']);
   });
