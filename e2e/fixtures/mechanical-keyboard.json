@@ -69,5 +69,6 @@
       "categoryIds": []
     }
   ],
+  "buyers": { "status": "disabled", "term": "mechanical keyboard", "windowDays": 30, "posts": [], "links": [] },
   "notices": []
 }

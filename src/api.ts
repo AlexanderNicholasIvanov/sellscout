@@ -1,4 +1,4 @@
-import type { Delivery, ErrorResponse, SearchInput, SearchResult } from '../server/types.ts';
+import type { BuyerWindow, Delivery, ErrorResponse, SearchInput, SearchResult } from '../server/types.ts';
 
 export class SearchError extends Error {}
 
@@ -20,13 +20,20 @@ function isSearchResult(value: unknown): value is SearchResult {
     Array.isArray(v.plan.categories) &&
     typeof v.plan.searchTerm === 'string' &&
     Array.isArray(v.venues) &&
+    typeof v.buyers === 'object' &&
+    v.buyers !== null &&
     Array.isArray(v.notices)
   );
 }
 
 /** Builds the request body; a blank location is omitted. */
-export function buildSearchInput(item: string, location: string, delivery: Delivery): SearchInput {
-  const input: SearchInput = { item: item.trim(), delivery };
+export function buildSearchInput(
+  item: string,
+  location: string,
+  delivery: Delivery,
+  window: BuyerWindow = 30,
+): SearchInput {
+  const input: SearchInput = { item: item.trim(), delivery, window };
   const loc = location.trim();
   if (loc !== '') input.location = loc;
   return input;

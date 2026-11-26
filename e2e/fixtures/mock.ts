@@ -16,6 +16,10 @@ function assertSearchResult(name: string, value: unknown): asserts value is Sear
     v.plan?.source === 'catalog' &&
     Array.isArray(v.plan.categories) &&
     typeof v.plan.searchTerm === 'string' &&
+    typeof v.buyers === 'object' &&
+    v.buyers !== null &&
+    Array.isArray(v.buyers.posts) &&
+    Array.isArray(v.buyers.links) &&
     Array.isArray(v.notices) &&
     v.notices.every((n) => typeof n === 'string') &&
     Array.isArray(v.venues) &&

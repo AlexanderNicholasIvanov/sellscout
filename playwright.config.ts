@@ -11,7 +11,7 @@ export default defineConfig({
   webServer: {
     command: 'npm start',
     url: `http://127.0.0.1:${PORT}/api/status`,
-    env: { PORT: String(PORT) },
+    env: { PORT: String(PORT), SELLSCOUT_FIXTURES: '1' },
     reuseExistingServer: false,
     timeout: 180_000,
   },

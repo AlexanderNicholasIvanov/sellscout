@@ -96,7 +96,7 @@ describe('POST /api/search accepts valid input (AC6)', () => {
     app.calls.length = 0;
     const res = await postSearch(app.port, { item: 'road bike' });
     expect(res.status).toBe(200);
-    expect(app.calls).toEqual([{ item: 'road bike', delivery: 'both' }]);
+    expect(app.calls).toEqual([{ item: 'road bike', delivery: 'both', window: 30 }]);
   });
 
   it('accepts a 200-character item and a 100-character location', async () => {
@@ -105,14 +105,14 @@ describe('POST /api/search accepts valid input (AC6)', () => {
     const location = 'b'.repeat(100);
     const res = await postSearch(app.port, { item, location, delivery: 'ship' });
     expect(res.status).toBe(200);
-    expect(app.calls).toEqual([{ item, location, delivery: 'ship' }]);
+    expect(app.calls).toEqual([{ item, location, delivery: 'ship', window: 30 }]);
   });
 
   it('treats a blank location as no location', async () => {
     app.calls.length = 0;
     const res = await postSearch(app.port, { item: 'bike', location: '   ' });
     expect(res.status).toBe(200);
-    expect(app.calls).toEqual([{ item: 'bike', delivery: 'both' }]);
+    expect(app.calls).toEqual([{ item: 'bike', delivery: 'both', window: 30 }]);
   });
 
   it('allows a charset=utf-8 suffix on the content type', async () => {
@@ -160,7 +160,49 @@ describe('validation helpers', () => {
   it('trims item and location before passing them on', () => {
     expect(parseSearchRequest('{"item":"  bike  ","location":" Seattle "}')).toEqual({
       ok: true,
-      value: { item: 'bike', location: 'Seattle', delivery: 'both' },
+      value: { item: 'bike', location: 'Seattle', delivery: 'both', window: 30 },
     });
+  });
+});
+
+describe('POST /api/search window (run 2a AC2)', () => {
+  it('defaults a missing window to 30', async () => {
+    app.calls.length = 0;
+    const res = await postSearch(app.port, { item: 'bike' });
+    expect(res.status).toBe(200);
+    expect(app.calls).toEqual([{ item: 'bike', delivery: 'both', window: 30 }]);
+  });
+
+  it.each([7, 30, 90])('accepts window %i', async (window) => {
+    app.calls.length = 0;
+    const res = await postSearch(app.port, { item: 'bike', window });
+    expect(res.status).toBe(200);
+    expect(app.calls).toEqual([{ item: 'bike', delivery: 'both', window }]);
+  });
+
+  it.each([
+    ['the string "30"', '30'],
+    ['14', 14],
+    ['0', 0],
+    ['null', null],
+    ['7.5', 7.5],
+    ['-30', -30],
+    ['an array', [30]],
+    ['an object', { days: 30 }],
+    ['true', true],
+  ])('rejects %s with 400', async (_label, window) => {
+    app.calls.length = 0;
+    expect(await expect400(await postSearch(app.port, { item: 'bike', window }))).toBe('window must be 7, 30 or 90');
+    expect(app.calls).toEqual([]);
+  });
+
+  it('parseSearchRequest returns the window in the value', () => {
+    expect(parseSearchRequest('{"item":"bike","window":90}')).toEqual({
+      ok: true,
+      value: { item: 'bike', delivery: 'both', window: 90 },
+    });
+    expect(parseSearchRequest('{"item":"bike"}')).toEqual({ ok: true, value: { item: 'bike', delivery: 'both', window: 30 } });
+    expect(parseSearchRequest('{"item":"bike","window":"30"}')).toEqual({ ok: false, error: 'window must be 7, 30 or 90' });
+    expect(parseSearchRequest('{"item":"bike","window":null}')).toEqual({ ok: false, error: 'window must be 7, 30 or 90' });
   });
 });

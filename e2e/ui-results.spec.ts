@@ -50,7 +50,7 @@ test.describe('search results', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].method).toBe('POST');
     expect(calls[0].contentType).toMatch(/^application\/json/);
-    expect(calls[0].body).toEqual({ item: 'mechanical keyboard', delivery: 'both' });
+    expect(calls[0].body).toEqual({ item: 'mechanical keyboard', delivery: 'both', window: 30 });
     expect(calls[0].body).not.toHaveProperty('location');
   });
 
@@ -64,7 +64,7 @@ test.describe('search results', () => {
     await page.getByRole('button', { name: 'Search' }).click();
 
     await expect(page.getByRole('heading', { name: 'Where to post it' })).toBeVisible();
-    expect(calls[0].body).toEqual({ item: 'mechanical keyboard', location: 'Seattle', delivery: 'ship' });
+    expect(calls[0].body).toEqual({ item: 'mechanical keyboard', location: 'Seattle', delivery: 'ship', window: 30 });
   });
 
   test('AC21: the no-match fixture shows its notice and "general item"', async ({ page }) => {
