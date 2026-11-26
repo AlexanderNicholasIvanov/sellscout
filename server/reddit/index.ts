@@ -8,6 +8,7 @@ import type { AppConfig } from '../config.ts';
 import type { BuyerContext, BuyersResult, BuyerWindow, Delivery } from '../types.ts';
 import { buyerPosts } from './classify.ts';
 import { createRedditClient } from './client.ts';
+import type { FixtureStore } from './fixtures/store.ts';
 import { createFixtureTransport } from './fixtures/transport.ts';
 import { REASON } from './http.ts';
 import type { SearchOutcome, Transport } from './http.ts';
@@ -24,6 +25,8 @@ export interface BuyerSearchOptions {
   version: string;
   /** Used for Reddit requests when signed in. Never called when disabled or in fixture mode. */
   fetch: typeof globalThis.fetch;
+  /** Fixture mode only: the post set to serve (shared with POST /api/__fixtures). Default: a fresh store. */
+  fixtureStore?: FixtureStore;
 }
 
 export const SEARCH_DEADLINE_MS = 25_000;
@@ -71,7 +74,7 @@ export function createBuyerSearch(options: BuyerSearchOptions): BuyerSearchFn {
   const { config } = options;
   // One transport per instance: the token cache and the limiter last for the server process.
   const transport: Transport | undefined = config.fixtures
-    ? createFixtureTransport(config.fixtureDelayMs)
+    ? createFixtureTransport(config.fixtureDelayMs, options.fixtureStore)
     : hasRedditKeys(config)
       ? createRedditClient({ reddit: config.reddit, version: options.version, fetch: options.fetch })
       : undefined;
