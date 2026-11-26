@@ -49,6 +49,29 @@ export function loadDotEnv(deps: DotEnvDeps): boolean {
   return true;
 }
 
+export interface PrepareDeps extends Omit<DotEnvDeps, 'env'> {
+  /** The process environment; `.env` values are loaded into it. */
+  env: Record<string, string | undefined>;
+  installGuard: () => void;
+  log: (message: string) => void;
+}
+
+/**
+ * Start-up order that keeps fixture mode safe: read `SELLSCOUT_FIXTURES` from the real
+ * environment, then maybe load `.env`, then read the config with fixture mode forced to the real
+ * value (so `.env` cannot switch it on), then install the fetch guard in fixture mode.
+ */
+export function prepareConfig(deps: PrepareDeps): AppConfig {
+  const fixtures = deps.env.SELLSCOUT_FIXTURES === '1';
+  loadDotEnv(deps);
+  const config = readConfig({ ...deps.env, SELLSCOUT_FIXTURES: fixtures ? '1' : '' });
+  if (config.fixtures) {
+    deps.installGuard();
+    deps.log(FIXTURE_MODE_MESSAGE);
+  }
+  return config;
+}
+
 export interface StartOptions {
   /** 0 picks a free port (tests). */
   port: number;
@@ -100,13 +123,16 @@ export function startServer(options: StartOptions): Promise<Server> {
 
 async function main(): Promise<void> {
   // Fixture mode comes from the real environment only: setting it in .env has no effect.
-  const fixtures = process.env.SELLSCOUT_FIXTURES === '1';
-  loadDotEnv({ env: process.env, exists: existsSync, load: (path) => process.loadEnvFile(path), path: DOTENV_PATH });
-  const config = readConfig({ ...process.env, SELLSCOUT_FIXTURES: fixtures ? '1' : '' });
-  if (config.fixtures) {
-    installFetchGuard();
-    console.log(FIXTURE_MODE_MESSAGE);
-  }
+  const config = prepareConfig({
+    env: process.env,
+    exists: existsSync,
+    load: (path) => process.loadEnvFile(path),
+    path: DOTENV_PATH,
+    installGuard: () => {
+      installFetchGuard();
+    },
+    log: (message) => console.log(message),
+  });
   const { port } = config;
   if (port === null) {
     console.error('PORT must be a number between 1 and 65535');

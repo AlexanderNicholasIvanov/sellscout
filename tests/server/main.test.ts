@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DOTENV_PATH, FIXTURE_MODE_MESSAGE, loadDotEnv, parsePort, startServer } from '../../server/main.ts';
+import { DOTENV_PATH, FIXTURE_MODE_MESSAGE, loadDotEnv, parsePort, prepareConfig, startServer } from '../../server/main.ts';
 import { closeServer, fakeResult, rawRequest } from './helpers.ts';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
@@ -213,5 +213,46 @@ describe('loadDotEnv (AC17)', () => {
 
   it('points at <repo root>/.env', () => {
     expect(DOTENV_PATH).toBe(join(repoRoot, '.env'));
+  });
+});
+
+describe('prepareConfig (AC16, AC17: start-up order)', () => {
+  function run(env: Record<string, string | undefined>, dotenv: Record<string, string> | null) {
+    const calls: string[] = [];
+    const config = prepareConfig({
+      env,
+      path: '/repo/.env',
+      exists: () => dotenv !== null,
+      load: () => {
+        calls.push('load');
+        Object.assign(env, dotenv);
+      },
+      installGuard: () => calls.push('guard'),
+      log: (message) => calls.push(`log:${message}`),
+    });
+    return { config, calls };
+  }
+
+  it('installs the fetch guard and ignores keys in fixture mode', () => {
+    const { config, calls } = run({ SELLSCOUT_FIXTURES: '1', REDDIT_CLIENT_ID: 'id', REDDIT_CLIENT_SECRET: 'secret' }, {});
+    expect(config.fixtures).toBe(true);
+    expect(config.reddit.clientSecret).toBe('');
+    expect(calls).toEqual(['guard', `log:${FIXTURE_MODE_MESSAGE}`]);
+  });
+
+  it('a .env that sets SELLSCOUT_FIXTURES=1 does not turn fixture mode on, and its keys are read', () => {
+    const { config, calls } = run(
+      {},
+      { SELLSCOUT_FIXTURES: '1', REDDIT_CLIENT_ID: 'from-dotenv', REDDIT_CLIENT_SECRET: 'dotenv-secret' },
+    );
+    expect(config.fixtures).toBe(false);
+    expect(config.reddit.clientId).toBe('from-dotenv');
+    expect(calls).toEqual(['load']);
+  });
+
+  it('without fixture mode the guard is never installed', () => {
+    const { config, calls } = run({ SELLSCOUT_FIXTURES: '0' }, null);
+    expect(config.fixtures).toBe(false);
+    expect(calls).toEqual([]);
   });
 });
