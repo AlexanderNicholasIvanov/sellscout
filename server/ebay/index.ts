@@ -13,7 +13,8 @@ import { ebaySearchUrl, REASON } from './http.ts';
 import type { EbayOutcome, EbayTransport } from './http.ts';
 import { categoryVenue, parseItems } from './parse.ts';
 
-export interface EbayQuery { item: string; delivery: Delivery }
+/** `term`: Claude's search term; unset = buyerTerm(item). */
+export interface EbayQuery { item: string; delivery: Delivery; term?: string }
 export interface EbaySearchOutput { ebay: EbayResult; categoryVenue?: Venue }
 export type EbaySearchFn = (query: EbayQuery) => Promise<EbaySearchOutput>;
 export interface EbaySearchOptions {
@@ -56,8 +57,8 @@ export function createEbaySearch(options: EbaySearchOptions): EbaySearchFn {
       ? createEbayClient({ ebay: config.ebay, fetch: options.fetch, ...(options.now ? { now: options.now } : {}) })
       : undefined;
 
-  return async ({ item, delivery }) => {
-    const term = buyerTerm(item);
+  return async ({ item, delivery, term: picked }) => {
+    const term = picked || buyerTerm(item);
     const searchUrl = ebaySearchUrl(term);
     if (!transport) return { ebay: { status: 'disabled', term, listings: [], searchUrl } };
 

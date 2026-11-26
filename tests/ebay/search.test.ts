@@ -353,3 +353,24 @@ describe('keys and tokens never leak (AC9)', () => {
     expect(text).not.toMatch(/Bearer|Basic /);
   });
 });
+
+describe("Claude's search term (run 4 AC8)", () => {
+  it('searches and reports the given term instead of buyerTerm(item)', async () => {
+    const fake = fakeEbayFetch({ onSearch: () => json(searchBody([item('a', '10.00')])) });
+    const out = await settle(createEbaySearch({ config: ebayConfig(), fetch: fake.fetch })({ ...query, item: 'clicky board', term: 'Keychron Q1' }));
+    expect(out.ebay.term).toBe('Keychron Q1');
+    expect(out.ebay.searchUrl).toBe('https://www.ebay.com/sch/i.html?_nkw=Keychron%20Q1');
+    expect(fake.searches()).toHaveLength(1);
+    expect(new URL(fake.searches()[0]?.url ?? '').searchParams.get('q')).toBe('Keychron Q1');
+  });
+
+  it('disabled: the term and the link report it', async () => {
+    const out = await createEbaySearch({ config: readConfig({}), fetch: vi.fn<typeof globalThis.fetch>() })({ ...query, term: 'Keychron Q1' });
+    expect(out.ebay).toEqual({ status: 'disabled', term: 'Keychron Q1', listings: [], searchUrl: 'https://www.ebay.com/sch/i.html?_nkw=Keychron%20Q1' });
+  });
+
+  it('without a term the item gives buyerTerm(item) as before', async () => {
+    const out = await createEbaySearch({ config: readConfig({}), fetch: vi.fn<typeof globalThis.fetch>() })({ item: 'the mechanical keyboard, mint', delivery: 'both' });
+    expect(out.ebay.term).toBe('mechanical keyboard');
+  });
+});

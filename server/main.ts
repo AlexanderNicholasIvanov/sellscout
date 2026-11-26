@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createApp } from './app.ts';
 import type { RequestHandler } from './app.ts';
-import { hasEbayKeys, hasRedditKeys, readConfig } from './config.ts';
+import { createClaudePlanner } from './claude/index.ts';
+import { hasClaudeKey, hasEbayKeys, hasRedditKeys, readConfig } from './config.ts';
 import type { AppConfig } from './config.ts';
 import { createEbaySearch } from './ebay/index.ts';
 import { installFetchGuard } from './fetch-guard.ts';
@@ -106,6 +107,8 @@ export function startServer(options: StartOptions): Promise<Server> {
         fixtureStore,
       }),
       ebay: createEbaySearch({ config, fetch: lateFetch }),
+      // Off without a key (no SDK client is built); the stand-in client in fixture mode.
+      planner: createClaudePlanner({ config, fetch: lateFetch }),
     });
   // The app needs the bound port for its Host check, which is only known after listen (port 0).
   let app: RequestHandler | undefined;
@@ -126,7 +129,12 @@ export function startServer(options: StartOptions): Promise<Server> {
         version,
         port,
         distDir: options.distDir ?? DIST_DIR,
-        status: { redditAuth: hasRedditKeys(config), fixtures: config.fixtures, ebay: hasEbayKeys(config) },
+        status: {
+          redditAuth: hasRedditKeys(config),
+          fixtures: config.fixtures,
+          ebay: hasEbayKeys(config),
+          claude: hasClaudeKey(config),
+        },
         fixtures: fixtureStore,
       });
       resolve(server);

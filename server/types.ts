@@ -89,7 +89,11 @@ export type SearchFn = (input: SearchInput) => Promise<SearchResult>;
 /** What the venue search hands the buyer search; never sent to the browser. */
 export interface BuyerContext { subreddits: string[]; craigslist?: string }
 export type VenueSearchResult = Omit<SearchResult, 'buyers' | 'ebay'> & { context: BuyerContext };
-export type VenueSearchFn = (input: SearchInput) => VenueSearchResult;
+/** `picks`: Claude's validated answer (server/claude ClaudePicks); unset = catalog keyword matching. */
+export type VenueSearchFn = (
+  input: SearchInput,
+  picks?: { categoryIds: string[]; searchTerm: string; subreddits: string[] },
+) => VenueSearchResult;
 
 export interface StatusResponse { version: string; redditAuth: boolean; fixtures: boolean; ebay: boolean; claude: boolean }
 export interface ErrorResponse { error: string }

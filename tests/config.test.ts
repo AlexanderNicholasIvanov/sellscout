@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasEbayKeys, hasRedditKeys, parsePort, readConfig } from '../server/config.ts';
+import { DEFAULT_CLAUDE_MODEL, hasClaudeKey, hasEbayKeys, hasRedditKeys, parsePort, readConfig } from '../server/config.ts';
 import { parsePort as parsePortFromMain } from '../server/main.ts';
 
 const ID = 'SENTINEL-ID-456';
@@ -13,6 +13,7 @@ describe('readConfig (AC3)', () => {
       fixtureDelayMs: 0,
       reddit: { clientId: '', clientSecret: '', username: '' },
       ebay: { clientId: '', clientSecret: '' },
+      claude: { apiKey: '', model: 'claude-opus-5-5' },
     });
   });
 
@@ -149,5 +150,59 @@ describe('hasEbayKeys (run 3 AC2)', () => {
   it('is false for an injected fixture config even if it carries keys', () => {
     const config = { ...readConfig({}), fixtures: true, ebay: { clientId: EBAY_ID, clientSecret: EBAY_SECRET } };
     expect(hasEbayKeys(config)).toBe(false);
+  });
+});
+
+const CLAUDE_KEY = 'SENTINEL-ANTHROPIC-KEY';
+
+describe('Claude settings in readConfig (run 4 AC2)', () => {
+  it('defaults the model to claude-opus-5-5 and the key to empty', () => {
+    expect(DEFAULT_CLAUDE_MODEL).toBe('claude-opus-5-5');
+    expect(readConfig({}).claude).toEqual({ apiKey: '', model: 'claude-opus-5-5' });
+  });
+
+  it('reads and trims ANTHROPIC_API_KEY', () => {
+    expect(readConfig({ ANTHROPIC_API_KEY: `  ${CLAUDE_KEY}\n` }).claude.apiKey).toBe(CLAUDE_KEY);
+  });
+
+  it.each([
+    [undefined, 'claude-opus-5-5'],
+    ['', 'claude-opus-5-5'],
+    ['   ', 'claude-opus-5-5'],
+    ['claude-sonnet-5-5', 'claude-sonnet-5-5'],
+    ['  claude-haiku-5 \t', 'claude-haiku-5'],
+  ])('SELLSCOUT_CLAUDE_MODEL=%j gives the model %s', (value, expected) => {
+    expect(readConfig({ SELLSCOUT_CLAUDE_MODEL: value }).claude.model).toBe(expected);
+  });
+
+  it('blanks the key in fixture mode but still reads the model', () => {
+    const config = readConfig({ SELLSCOUT_FIXTURES: '1', ANTHROPIC_API_KEY: CLAUDE_KEY, SELLSCOUT_CLAUDE_MODEL: 'claude-x' });
+    expect(config.claude).toEqual({ apiKey: '', model: 'claude-x' });
+    expect(JSON.stringify(config)).not.toContain('SENTINEL');
+  });
+
+  it('never reads ANTHROPIC_AUTH_TOKEN as the key', () => {
+    expect(readConfig({ ANTHROPIC_AUTH_TOKEN: 'SENTINEL-TOKEN' }).claude.apiKey).toBe('');
+  });
+});
+
+describe('hasClaudeKey (run 4 AC2)', () => {
+  it('is true with a key and fixtures off', () => {
+    expect(hasClaudeKey(readConfig({ ANTHROPIC_API_KEY: CLAUDE_KEY }))).toBe(true);
+  });
+
+  it.each([
+    ['no key', {}],
+    ['a blank key', { ANTHROPIC_API_KEY: '  ' }],
+    ['only an auth token', { ANTHROPIC_AUTH_TOKEN: 'SENTINEL-TOKEN' }],
+    ['only a model', { SELLSCOUT_CLAUDE_MODEL: 'claude-opus-5-5' }],
+    ['fixture mode with a key', { SELLSCOUT_FIXTURES: '1', ANTHROPIC_API_KEY: CLAUDE_KEY }],
+  ])('is false with %s', (_label, env: Record<string, string>) => {
+    expect(hasClaudeKey(readConfig(env))).toBe(false);
+  });
+
+  it('is false for an injected fixture config even if it carries a key', () => {
+    const config = { ...readConfig({}), fixtures: true, claude: { apiKey: CLAUDE_KEY, model: 'm' } };
+    expect(hasClaudeKey(config)).toBe(false);
   });
 });

@@ -198,3 +198,27 @@ describe('the location never leaves (AC15)', () => {
     }
   });
 });
+
+describe("Claude's search term (run 4 AC8)", () => {
+  it('searches and reports the given term instead of buyerTerm(item)', async () => {
+    const fake = fakeFetch();
+    const search = createBuyerSearch({ config: config(), version: '1.2.3', fetch: fake.fetch });
+    const out = await settle(search({ ...query, item: 'my old rtx thing, barely used', term: 'RTX 3080 Founders' }));
+    expect(out.buyers.term).toBe('RTX 3080 Founders');
+    expect(fake.searches().length).toBeGreaterThan(0);
+    for (const call of fake.searches()) expect(new URL(call.url).searchParams.get('q')).toContain('RTX 3080 Founders');
+    expect(out.buyers.links[0]?.url).toContain(encodeURIComponent('RTX 3080 Founders'));
+  });
+
+  it('disabled: the term and the links report it', async () => {
+    const search = createBuyerSearch({ config: noKeys(), version: '1.2.3', fetch: vi.fn<typeof globalThis.fetch>() });
+    const out = await search({ ...query, item: 'whatever', term: 'mechanical keyboard' });
+    expect(out.buyers.term).toBe('mechanical keyboard');
+    expect(out.buyers.links.every((link) => link.url.includes('mechanical%20keyboard'))).toBe(true);
+  });
+
+  it('without a term the item gives buyerTerm(item) as before', async () => {
+    const search = createBuyerSearch({ config: noKeys(), version: '1.2.3', fetch: vi.fn<typeof globalThis.fetch>() });
+    expect((await search({ ...query, item: 'the RTX 3080, mint' })).buyers.term).toBe('RTX 3080');
+  });
+});
