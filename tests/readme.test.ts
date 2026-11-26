@@ -9,7 +9,7 @@ const headings = readme
   .map((line) => line.slice(3).trim());
 
 describe('README', () => {
-  it.each(['Setup', 'Running', 'Checks', 'Editing the catalog and metros', 'Privacy', 'Roadmap'])(
+  it.each(['Setup', 'Running', 'Checks', 'Editing the catalog and metros', 'Reddit', 'Privacy', 'Roadmap'])(
     'has a "%s" section',
     (name) => {
       expect(headings).toContain(name);
