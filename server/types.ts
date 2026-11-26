@@ -99,3 +99,21 @@ export interface StatusResponse { version: string; redditAuth: boolean; fixtures
 export interface ErrorResponse { error: string }
 /** POST /api/__fixtures (fixture mode only): the fixture post count after the change. */
 export interface FixturesResponse { ok: true; posts: number }
+
+// Settings screen (run 5). Keys and their order live in server/settings/keys.ts.
+export type SettingKey =
+  | 'ANTHROPIC_API_KEY'
+  | 'SELLSCOUT_CLAUDE_MODEL'
+  | 'EBAY_CLIENT_ID'
+  | 'EBAY_CLIENT_SECRET'
+  | 'REDDIT_CLIENT_ID'
+  | 'REDDIT_CLIENT_SECRET'
+  | 'REDDIT_USERNAME';
+/** `environment` = a non-empty value in the environment / `.env` (it wins and is read-only). */
+export type SettingSource = 'environment' | 'settings' | 'none';
+/** `value` is present only for a non-secret key that is set. Secret values never leave the server. */
+export interface SettingState { source: SettingSource; secret: boolean; value?: string }
+/** GET /api/settings and the 200 answer of PUT /api/settings. `file` is null when read-only. */
+export interface SettingsResponse { editable: boolean; file: string | null; settings: Record<SettingKey, SettingState> }
+/** PUT /api/settings body: a string saves it (trimmed; '' removes it), null removes it, a key left out is unchanged. */
+export interface SettingsUpdate { values: Partial<Record<SettingKey, string | null>> }
