@@ -89,8 +89,9 @@ export function startServer(options: StartOptions): Promise<Server> {
   const host = options.host ?? HOST;
   const config = options.config ?? readConfig({});
   const version = options.version ?? readVersion();
-  // Fixture mode: one store shared by the buyer search and POST /api/__fixtures. Off: none, so that route 404s.
-  const fixtureStore = config.fixtures ? createFixtureStore() : undefined;
+  // Fixture mode: one store shared by the buyer search and POST /api/__fixtures. Off, or an
+  // injected `search` that would never read it: no store, so that route 404s.
+  const fixtureStore = config.fixtures && options.search === undefined ? createFixtureStore() : undefined;
   const search =
     options.search ??
     createSearchService({

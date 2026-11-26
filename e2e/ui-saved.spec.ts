@@ -158,6 +158,43 @@ test.describe('saved searches (AC6)', () => {
     });
   }
 
+  test('a failed write keeps the reset notice, and a later write clears only the failure', async ({ page }) => {
+    await mockSearch(page, 'buyers-ok');
+    await seedStorage(page, KEY, '{oops');
+    await page.goto('/');
+    const reset = "Saved searches couldn't be read and were reset (a backup was kept).";
+    await searchFor(page, 'mechanical keyboard');
+    await page.getByRole('button', { name: 'Save search' }).click();
+    await expect(saveStatus(page)).toHaveText('Saved');
+
+    // Storage starts refusing writes: Delete fails and both messages show.
+    await page.evaluate(() => {
+      const w = window as unknown as { __realSetItem?: Storage['setItem'] };
+      w.__realSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = () => {
+        throw new DOMException('full', 'QuotaExceededError');
+      };
+    });
+    page.once('dialog', (d) => void d.accept());
+    await page.getByRole('button', { name: 'Delete "mechanical keyboard"' }).click();
+    await expect(panel(page).getByRole('status')).toHaveText(
+      `${reset} Couldn't save: browser storage is full or blocked`,
+    );
+    await expect(rows(page)).toHaveCount(1);
+
+    // Writes work again: the failure goes, the reset notice stays.
+    await page.evaluate(() => {
+      const w = window as unknown as { __realSetItem: Storage['setItem'] };
+      Storage.prototype.setItem = w.__realSetItem;
+    });
+    await page.getByRole('button', { name: 'Save search' }).click();
+    await expect(saveStatus(page)).toHaveText('Already saved');
+    page.once('dialog', (d) => void d.accept());
+    await page.getByRole('button', { name: 'Delete "mechanical keyboard"' }).click();
+    await expect(panel(page).getByRole('status')).toHaveText(reset);
+    await expect(rows(page)).toHaveCount(0);
+  });
+
   test('Save stores the searched values, not the edited form', async ({ page }) => {
     const { calls } = await mockSearch(page, 'buyers-ok');
     await page.goto('/');

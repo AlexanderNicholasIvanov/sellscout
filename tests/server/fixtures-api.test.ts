@@ -120,6 +120,8 @@ describe('POST /api/__fixtures: fixture mode on', () => {
     ['post not an object', { post: 'zx_1' }, FIXTURE_ERRORS.shape],
     ['post an array', { post: [post()] }, FIXTURE_ERRORS.shape],
     ['an unknown post field', { post: post({ author: 'someone' }) }, FIXTURE_ERRORS.shape],
+    ['a top-level __proto__ key', '{"__proto__":{"reset":true}}', FIXTURE_ERRORS.shape],
+    ['a __proto__ key inside post', '{"post":{"__proto__":{},"id":"zx_1","title":"WTB x","subreddit":"abc"}}', FIXTURE_ERRORS.shape],
     ['id missing', { post: post({ id: undefined }) }, FIXTURE_ERRORS.id],
     ['id upper case', { post: post({ id: 'ZX_1' }) }, FIXTURE_ERRORS.id],
     ['id with a dash', { post: post({ id: 'zx-1' }) }, FIXTURE_ERRORS.id],

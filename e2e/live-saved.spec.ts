@@ -20,16 +20,17 @@ const postById = (page: Page, id: string) =>
     .locator('ol.posts > li')
     .filter({ has: page.locator(`a[href*="/comments/${id}/"]`) });
 
-test.describe('live saved searches @needs-fixtures-api', () => {
+test.describe('live saved searches', () => {
   test('AC7: Run marks only the post added since the last run as "New"', async ({ page, request }, testInfo) => {
     const suffix = `${Date.now().toString(36)}${testInfo.workerIndex}`;
     const term = `zorblax${suffix}`;
-    const item = `${term} widget`;
+    // The item is the unique term alone: a shared word would match other copies' posts.
+    const item = term;
     // Ids must match ^[a-z0-9_]{1,20}$.
     const idA = `a_${suffix}`.slice(0, 20);
     const idB = `b_${suffix}`.slice(0, 20);
-    const titleA = `WTB ${term} widget`;
-    const titleB = `WTB ${term} widget, second`;
+    const titleA = `WTB ${term}`;
+    const titleB = `WTB ${term}, second`;
 
     await blockExternalRequests(page);
     await page.goto('/');

@@ -24,7 +24,6 @@ import {
 } from './format.ts';
 import {
   SAVED_MESSAGE,
-  WRITE_FAILED_MESSAGE,
   add,
   applyRun,
   load,
@@ -321,7 +320,9 @@ export function App() {
   const savedRef = useRef<SavedSearch[]>(boot.list);
   // "last run" ages are relative to the last time the list changed, so rendering stays pure.
   const [savedNow, setSavedNow] = useState(boot.at);
-  const [savedNotice, setSavedNotice] = useState<string | null>(boot.notice ?? null);
+  // The load-time reset notice stays until reload; a failed write has its own slot.
+  const storageNotice = boot.notice ?? null;
+  const [writeError, setWriteError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<SaveMessage | null>(null);
   const itemRef = useRef<HTMLInputElement>(null);
   const savedHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -343,7 +344,7 @@ export function App() {
     savedRef.current = next;
     setSaved(next);
     setSavedNow(nowMs);
-    setSavedNotice((prev) => (prev === WRITE_FAILED_MESSAGE ? null : prev));
+    setWriteError(null);
   }
 
   /** The one search path, for the form and for Run. `run` marks a Run of a saved search. */
@@ -370,7 +371,7 @@ export function App() {
         const next = applyRun(savedRef.current, run.id, postIds, at);
         if (next) {
           const failed = write(browserStorage, next);
-          if (failed !== null) setSavedNotice(failed);
+          if (failed !== null) setWriteError(failed);
           else commitList(next, at);
         }
       }
@@ -412,7 +413,7 @@ export function App() {
     const next = remove(savedRef.current, record.id);
     const failed = write(browserStorage, next);
     if (failed !== null) {
-      setSavedNotice(failed);
+      setWriteError(failed);
       return;
     }
     commitList(next, Date.now());
@@ -544,7 +545,7 @@ export function App() {
 
         <SavedPanel
           list={saved}
-          notice={savedNotice}
+          notice={[storageNotice, writeError].filter((n) => n !== null).join(' ') || null}
           nowMs={savedNow}
           runDisabled={loading}
           onRun={onRun}
