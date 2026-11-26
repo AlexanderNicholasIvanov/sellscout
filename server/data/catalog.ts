@@ -11,8 +11,21 @@ const categories: Category[] = [
     id: 'electronics',
     name: 'Electronics',
     keywords: [
-      'electronics', 'laptop', 'macbook', 'chromebook', 'television', 'tv', 'oled tv', 'monitor',
-      'projector', 'drone', 'dji', 'kindle', 'e-reader', 'smart home', 'vr headset', 'meta quest',
+      'electronics', 'television', 'tv', 'oled tv', 'smart tv', 'projector', 'drone', 'dji', 'kindle',
+      'e-reader', 'smart home', 'vr headset', 'meta quest', 'camcorder',
+    ],
+  },
+  {
+    id: 'laptops',
+    name: 'Laptops',
+    keywords: ['laptop', 'notebook computer', 'macbook', 'chromebook', 'thinkpad', 'gaming laptop', 'ultrabook'],
+  },
+  {
+    id: 'apple',
+    name: 'Apple devices',
+    keywords: [
+      'apple', 'iphone', 'ipad', 'macbook', 'imac', 'mac mini', 'mac studio', 'apple watch', 'airpods',
+      'apple tv', 'apple pencil',
     ],
   },
   {
@@ -37,9 +50,9 @@ const categories: Category[] = [
     id: 'pc-parts',
     name: 'PC parts & computers',
     keywords: [
-      'gpu', 'rtx', 'gtx', 'radeon', 'graphics card', 'video card', 'cpu', 'processor', 'ryzen',
-      'intel core', 'motherboard', 'ram', 'ddr4', 'ddr5', 'ssd', 'nvme', 'hard drive', 'power supply',
-      'psu', 'pc case', 'gaming pc', 'desktop pc', 'pc build', 'cpu cooler',
+      'gpu', 'rtx', 'gtx', 'radeon', 'graphics card', 'video card', 'cpu', 'ryzen', 'intel core',
+      'motherboard', 'ram', 'ddr4', 'ddr5', 'ssd', 'nvme', 'hard drive', 'power supply', 'psu', 'pc case',
+      'gaming pc', 'desktop pc', 'pc build', 'cpu cooler', 'computer monitor', 'gaming monitor',
     ],
   },
   {
@@ -63,14 +76,14 @@ const categories: Category[] = [
     name: 'Phones & tablets',
     keywords: [
       'iphone', 'ipad', 'phone', 'smartphone', 'android phone', 'samsung galaxy', 'galaxy s', 'google pixel',
-      'pixel', 'oneplus', 'tablet', 'apple watch', 'smartwatch', 'galaxy tab',
+      'pixel', 'oneplus', 'tablet', 'smartwatch', 'galaxy tab',
     ],
   },
   {
     id: 'video-games',
     name: 'Video games & consoles',
     keywords: [
-      'video game', 'game console', 'console', 'playstation', 'ps5', 'ps4', 'ps2', 'xbox', 'nintendo',
+      'video game', 'game console', 'gaming console', 'playstation', 'ps5', 'ps4', 'ps2', 'xbox', 'nintendo',
       'nintendo switch', 'switch 2', 'game boy', 'gameboy', 'gamecube', 'n64', 'snes', 'nes', 'steam deck',
       'retro game', 'game cartridge',
     ],
@@ -85,11 +98,19 @@ const categories: Category[] = [
     ],
   },
   {
+    id: 'luxury',
+    name: 'Luxury & designer',
+    keywords: [
+      'luxury', 'designer', 'louis vuitton', 'gucci', 'prada', 'chanel', 'hermes', 'birkin', 'dior',
+      'balenciaga', 'cartier', 'rolex', 'tiffany', 'van cleef',
+    ],
+  },
+  {
     id: 'sneakers',
     name: 'Sneakers',
     keywords: [
       'sneaker', 'jordan', 'air jordan', 'yeezy', 'nike', 'adidas', 'new balance', 'dunk', 'air max',
-      'air force 1', 'asics', 'trainer', 'deadstock',
+      'air force 1', 'asics', 'deadstock',
     ],
   },
   {
@@ -98,16 +119,22 @@ const categories: Category[] = [
     keywords: [
       'clothing', 'clothes', 'jacket', 'coat', 'jeans', 'denim', 'dress', 'shirt', 'hoodie', 'sweater',
       'boots', 'shoes', 'handbag', 'purse', 'designer', 'vintage clothing', 'streetwear', 'supreme',
-      'louis vuitton', 'gucci', 'prada', 'chanel', 'hermes', 'patagonia', 'arcteryx', 'levis',
+      'louis vuitton', 'gucci', 'prada', 'chanel', 'hermes', 'arcteryx', 'levis',
     ],
+  },
+  {
+    id: 'patagonia',
+    name: 'Patagonia',
+    keywords: ['patagonia', 'nano puff', 'better sweater', 'synchilla', 'retro-x'],
   },
   {
     id: 'furniture',
     name: 'Furniture',
     keywords: [
       'furniture', 'sofa', 'couch', 'sectional', 'dresser', 'desk', 'dining table', 'coffee table',
-      'side table', 'chair', 'office chair', 'armchair', 'bookshelf', 'bookcase', 'bed frame', 'mattress',
-      'cabinet', 'nightstand', 'credenza', 'mid-century', 'mid century', 'herman miller', 'eames', 'rug',
+      'side table', 'console table', 'chair', 'office chair', 'armchair', 'bookshelf', 'bookcase', 'bed frame',
+      'mattress', 'cabinet', 'nightstand', 'credenza', 'mid-century', 'mid century', 'herman miller', 'eames',
+      'rug',
     ],
   },
   {
@@ -122,10 +149,28 @@ const categories: Category[] = [
     id: 'trading-cards',
     name: 'Trading cards & collectibles',
     keywords: [
-      'trading card', 'pokemon card', 'pokemon', 'tcg', 'magic the gathering', 'mtg', 'yu-gi-oh', 'yugioh',
-      'lorcana', 'sports card', 'baseball card', 'basketball card', 'football card', 'graded card',
-      'psa 10', 'psa', 'bgs', 'booster box', 'booster pack', 'collectible', 'rookie card',
+      'trading card', 'sports card', 'baseball card', 'basketball card', 'football card', 'hockey card',
+      'rookie card', 'graded card', 'psa 10', 'psa', 'bgs', 'collectible', 'pokemon', 'pokemon card', 'mtg',
+      'magic the gathering', 'yu-gi-oh', 'yugioh', 'lorcana',
     ],
+  },
+  {
+    id: 'tcg',
+    name: 'Trading card games',
+    keywords: [
+      'tcg', 'trading card game', 'pokemon', 'pokemon card', 'magic the gathering', 'mtg', 'yu-gi-oh',
+      'yugioh', 'lorcana', 'booster box', 'booster pack', 'elite trainer box',
+    ],
+  },
+  {
+    id: 'pokemon',
+    name: 'Pokemon cards',
+    keywords: ['pokemon', 'pokemon card', 'charizard', 'pikachu', 'pokemon tcg'],
+  },
+  {
+    id: 'mtg',
+    name: 'Magic: The Gathering',
+    keywords: ['mtg', 'magic the gathering', 'magic card', 'commander deck'],
   },
   {
     id: 'comics',
@@ -153,11 +198,20 @@ const categories: Category[] = [
     ],
   },
   {
+    id: 'bass',
+    name: 'Bass guitars & bass gear',
+    keywords: [
+      'bass guitar', 'bass amp', 'bass cab', 'bass cabinet', 'precision bass', 'jazz bass', 'fretless bass',
+      'bass pedal',
+    ],
+  },
+  {
     id: 'bikes',
     name: 'Bikes & cycling',
     keywords: [
       'bike', 'bicycle', 'road bike', 'mountain bike', 'mtb', 'gravel bike', 'e-bike', 'ebike', 'bmx',
-      'cannondale', 'specialized', 'trek', 'shimano', 'sram', 'frameset', 'groupset', 'wheelset',
+      'cannondale', 'specialized bike', 'trek bike', 'shimano', 'sram', 'frameset', 'groupset', 'wheelset',
+      'bike trainer', 'smart trainer', 'wahoo',
     ],
   },
   {
@@ -175,23 +229,34 @@ const categories: Category[] = [
     keywords: [
       'tent', 'backpacking', 'backpack', 'sleeping bag', 'sleeping pad', 'hiking', 'camping', 'ultralight',
       'climbing', 'climbing shoes', 'carabiner', 'ski', 'snowboard', 'kayak', 'paddleboard', 'fishing rod',
-      'fishing reel', 'osprey', 'hyperlite', 'zpacks', 'rei', 'trekking pole',
+      'fishing reel', 'osprey', 'hyperlite', 'zpacks', 'msr', 'rei', 'trekking pole',
     ],
   },
   {
-    id: 'toys-lego',
-    name: 'Toys & LEGO',
+    id: 'backpacking',
+    name: 'Backpacking & ultralight',
     keywords: [
-      'lego', 'lego set', 'minifigure', 'minifig', 'technic', 'toy', 'action figure', 'funko', 'hot wheels',
-      'model train', 'board game',
+      'backpacking', 'ultralight', 'thru-hike', 'tent', 'backpack', 'sleeping bag', 'sleeping pad', 'quilt',
+      'trekking pole', 'hyperlite', 'zpacks', 'osprey', 'msr', 'big agnes',
     ],
+  },
+  {
+    id: 'lego',
+    name: 'LEGO',
+    keywords: ['lego', 'lego set', 'minifigure', 'minifig', 'technic', 'duplo'],
+  },
+  {
+    id: 'toys',
+    name: 'Toys',
+    keywords: ['toy', 'action figure', 'funko', 'hot wheels', 'model train', 'board game', 'plush', 'barbie'],
   },
   {
     id: 'jewelry',
     name: 'Jewelry',
     keywords: [
-      'jewelry', 'jewellery', 'ring', 'engagement ring', 'diamond', 'necklace', 'bracelet', 'earring',
-      'pendant', 'gold chain', 'sterling silver', 'tiffany',
+      'jewelry', 'jewellery', 'engagement ring', 'diamond ring', 'wedding ring', 'wedding band', 'gold ring',
+      'silver ring', 'diamond', 'necklace', 'bracelet', 'earring', 'pendant', 'gold chain', 'sterling silver',
+      'tiffany',
     ],
   },
   {
@@ -205,7 +270,7 @@ const categories: Category[] = [
   {
     id: 'pens',
     name: 'Fountain pens',
-    keywords: ['fountain pen', 'pen', 'nib', 'montblanc', 'pelikan', 'lamy', 'visconti', 'parker pen'],
+    keywords: ['fountain pen', 'nib', 'montblanc', 'pelikan', 'lamy', 'visconti', 'parker pen', 'pen collection'],
   },
 ];
 
@@ -326,7 +391,7 @@ const venues: CatalogVenue[] = [
   },
 
   // PC parts, servers, keyboards
-  subreddit('r-hardwareswap', 'hardwareswap', ['pc-parts'], [
+  subreddit('r-hardwareswap', 'hardwareswap', ['pc-parts', 'laptops'], [
     'Title format: [USA-XX] [H] item [W] PayPal, local cash',
     'Include a timestamp photo: the parts next to paper with your username',
     'Use PayPal Goods & Services, never Friends & Family',
@@ -387,9 +452,9 @@ const venues: CatalogVenue[] = [
       'The device must be fully working with a clean IMEI (not blacklisted or financed)',
       'Listings are reviewed: photograph the actual device, powered on',
     ],
-    categoryIds: ['phones', 'electronics', 'video-games'],
+    categoryIds: ['phones', 'laptops', 'video-games'],
   },
-  subreddit('r-appleswap', 'appleswap', ['phones', 'electronics'], [
+  subreddit('r-appleswap', 'appleswap', ['apple'], [
     'Title format: [USA-XX] [H] item [W] PayPal, local cash',
     'Include a timestamp photo with your username',
     'Turn off Find My (Activation Lock) before you ship',
@@ -406,7 +471,7 @@ const venues: CatalogVenue[] = [
       'Get an instant trade-in offer, then ship with the free label',
       'Sign out of iCloud or Google and factory reset first',
     ],
-    categoryIds: ['phones', 'electronics'],
+    categoryIds: ['phones', 'laptops'],
   },
   // Watches
   subreddit('r-watchexchange', 'Watchexchange', ['watches'], [
@@ -564,7 +629,7 @@ const venues: CatalogVenue[] = [
       'Luxury consignment: they authenticate, photograph and price for you',
       'Best for designer bags, fine jewelry and luxury watches',
     ],
-    categoryIds: ['fashion', 'jewelry', 'watches'],
+    categoryIds: ['luxury'],
   },
   {
     id: 'patagonia-worn-wear',
@@ -578,7 +643,7 @@ const venues: CatalogVenue[] = [
       'Patagonia clothing and gear only, traded in for credit',
       'Items must be clean and fully functional',
     ],
-    categoryIds: ['fashion', 'outdoor'],
+    categoryIds: ['patagonia'],
   },
 
   // Furniture
@@ -687,9 +752,9 @@ const venues: CatalogVenue[] = [
       'List singles by exact set, number and condition (NM, LP, MP)',
       'Bulk commons sell better as a lot elsewhere',
     ],
-    categoryIds: ['trading-cards'],
+    categoryIds: ['tcg'],
   },
-  subreddit('r-pkmntcgtrades', 'pkmntcgtrades', ['trading-cards'], [
+  subreddit('r-pkmntcgtrades', 'pkmntcgtrades', ['pokemon'], [
     'Follow the sub\'s [H]/[W] title format with your country',
     'Include timestamp photos of the cards with your username',
   ]),
@@ -719,7 +784,7 @@ const venues: CatalogVenue[] = [
       'Sells Magic: The Gathering singles to a dealer at posted prices',
       'Choosing store credit pays more than cash',
     ],
-    categoryIds: ['trading-cards'],
+    categoryIds: ['mtg'],
   },
 
   // Musical instruments
@@ -766,7 +831,7 @@ const venues: CatalogVenue[] = [
       'Classifieds need an established account before you can post',
       'For basses, bass amps, cabs and pedals',
     ],
-    categoryIds: ['instruments'],
+    categoryIds: ['bass'],
   },
 
   // Bikes
@@ -805,7 +870,7 @@ const venues: CatalogVenue[] = [
   },
 
   // Outdoor gear
-  subreddit('r-ulgeartrade', 'ULgeartrade', ['outdoor'], [
+  subreddit('r-ulgeartrade', 'ULgeartrade', ['backpacking'], [
     'Start the title with the sale tag the sub requires (e.g. [WTS])',
     'List weights, condition and a timestamp photo with your username',
   ]),
@@ -852,7 +917,7 @@ const venues: CatalogVenue[] = [
       'Open a store and list sets by set number, parts by part and colour',
       'Say whether a set is sealed, complete with box, or incomplete',
     ],
-    categoryIds: ['toys-lego'],
+    categoryIds: ['lego'],
   },
   {
     id: 'brick-owl',
@@ -865,9 +930,9 @@ const venues: CatalogVenue[] = [
       'LEGO sets, minifigures and parts',
       'Import a BrickLink inventory to list on both',
     ],
-    categoryIds: ['toys-lego'],
+    categoryIds: ['lego'],
   },
-  subreddit('r-legomarket', 'legomarket', ['toys-lego'], [
+  subreddit('r-legomarket', 'legomarket', ['lego'], [
     'Title format: [H] set number and name [W] PayPal, with your location',
     'Include a timestamp photo with your username',
   ]),
@@ -936,7 +1001,7 @@ const venues: CatalogVenue[] = [
       'Neighbours only: good for bulky items you will not ship',
       'Post a price and a pickup window',
     ],
-    categoryIds: ['furniture', 'tools', 'bikes', 'toys-lego'],
+    categoryIds: ['furniture', 'tools', 'bikes', 'toys', 'electronics'],
   },
 
   // General venues: shown for every item, after the specialists.

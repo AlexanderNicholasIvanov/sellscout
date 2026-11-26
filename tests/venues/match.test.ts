@@ -39,6 +39,15 @@ describe('keyword matching', () => {
   it('ignores blank keywords', () => {
     expect(keywordPattern('   ')).toBeUndefined();
   });
+
+  it('folds diacritics on both sides', () => {
+    const compiled = compileCategories([
+      { id: 'cafe', name: 'Cafe', keywords: ['café'] },
+      { id: 'poke', name: 'Poke', keywords: ['pokemon'] },
+    ]);
+    expect(matchCategories('Cafe chairs', compiled).map((m) => m.category.id)).toEqual(['cafe']);
+    expect(matchCategories('CAFÉ sign, Pokémon cards', compiled).map((m) => m.category.id)).toEqual(['cafe', 'poke']);
+  });
 });
 
 describe('ranking rules (fixture catalog)', () => {
@@ -111,9 +120,82 @@ describe('ranking on the real catalog (AC9)', () => {
     expect(venues.map((v) => v.name)).not.toContain('r/Watchexchange');
   });
 
+  it('"Pokémon Charizard card" matches the trading-card categories despite the accent', () => {
+    const { plan, venues } = searchVenues({ item: 'Pokémon Charizard card', delivery: 'both' });
+    expect(plan.categories.map((c) => c.id)).toEqual(expect.arrayContaining(['pokemon', 'trading-cards']));
+    expect(venues[0].name).toBe('r/pkmntcgtrades');
+    expect(plan.searchTerm).toBe('Pokémon Charizard card');
+  });
+
   it('"rolex watches" matches watches via the plural', () => {
     const { plan, venues } = searchVenues({ item: 'two Rolex watches', delivery: 'both' });
     expect(plan.categories[0].id).toBe('watches');
     expect(venues[0].why).toEqual(expect.arrayContaining(['watch', 'rolex']));
+  });
+});
+
+describe('ranking regressions on the real catalog (review round 1)', () => {
+  const names = (item: string) => searchVenues({ item, delivery: 'both' }).venues.map((v) => v.name);
+  const categoriesOf = (item: string) => searchVenues({ item, delivery: 'both' }).plan.categories.map((c) => c.id);
+
+  it.each(['Samsung OLED TV', 'DJI drone', 'Kindle e-reader'])(
+    '%j does not surface Apple-only or phone trade-in boards at the top',
+    (item) => {
+      const list = names(item);
+      expect(list).not.toContain('r/appleswap');
+      expect(list.slice(0, 3)).not.toContain('Swappa');
+      expect(list.slice(0, 3)).not.toContain('Back Market (trade-in)');
+    },
+  );
+
+  it('keeps r/appleswap for Apple devices only', () => {
+    expect(names('iPhone 15 Pro 256GB')).toContain('r/appleswap');
+    expect(names('MacBook Air M2')).toContain('r/appleswap');
+    expect(names('Samsung Galaxy S24')).not.toContain('r/appleswap');
+  });
+
+  it('"MSR tent" ranks the general outdoor boards above Patagonia Worn Wear', () => {
+    const list = names('MSR tent');
+    const best = Math.min(
+      ...['r/ULgeartrade', 'GearTrade'].map((n) => list.indexOf(n)).filter((i) => i >= 0),
+    );
+    expect(Number.isFinite(best)).toBe(true);
+    const wornWear = list.indexOf('Patagonia Worn Wear (trade-in)');
+    expect(wornWear === -1 || wornWear > best).toBe(true);
+  });
+
+  it('"Patagonia Nano Puff jacket" lists Patagonia Worn Wear first', () => {
+    expect(names('Patagonia Nano Puff jacket')[0]).toBe('Patagonia Worn Wear (trade-in)');
+  });
+
+  it('keeps brand- or niche-only boards off unrelated items', () => {
+    expect(names('1987 Topps baseball card')).not.toContain('r/pkmntcgtrades');
+    expect(names('1987 Topps baseball card')).not.toContain('Card Kingdom buylist');
+    expect(names('1987 Topps baseball card')).not.toContain('TCGplayer');
+    expect(names('MTG commander deck')).toContain('Card Kingdom buylist');
+    expect(names('violin with case')).not.toContain('TalkBass Classifieds');
+    expect(names('Fender Precision Bass')).toContain('TalkBass Classifieds');
+    expect(names('Funko Pop figures')).not.toContain('BrickLink');
+    expect(names('LEGO 75192')).toContain('BrickLink');
+    expect(names('Casio G-Shock watch')).not.toContain('The RealReal');
+    expect(names('Louis Vuitton handbag')).toContain('The RealReal');
+    expect(names('kayak paddle')).not.toContain('r/ULgeartrade');
+  });
+
+  it('does not mis-rank on generic words', () => {
+    expect(categoriesOf('food processor')).not.toContain('pc-parts');
+    expect(categoriesOf('console table')).not.toContain('video-games');
+    expect(categoriesOf('console table')).toContain('furniture');
+    expect(categoriesOf('Ring video doorbell')).not.toContain('jewelry');
+    expect(categoriesOf('diamond engagement ring')[0]).toBe('jewelry');
+    expect(categoriesOf('dog trainer')).not.toContain('sneakers');
+    expect(categoriesOf('Star Trek DVDs')).not.toContain('bikes');
+  });
+
+  it('"Wahoo bike trainer" ranks bikes first', () => {
+    const { plan, venues } = searchVenues({ item: 'Wahoo bike trainer', delivery: 'both' });
+    expect(plan.categories[0].id).toBe('bikes');
+    expect(plan.categories.map((c) => c.id)).not.toContain('sneakers');
+    expect(venues[0].categoryIds).toContain('bikes');
   });
 });

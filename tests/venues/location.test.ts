@@ -146,3 +146,40 @@ describe('metro buy/sell subreddit (AC15, fixture metro)', () => {
     expect(result.venues.find((v) => v.id === 'craigslist')?.url).toBe('https://metropolis.craigslist.org/');
   });
 });
+
+describe('a typed state must match the metro (review round 1)', () => {
+  const resolve = createMetroResolver(metros);
+
+  it.each([
+    'Lakewood, NJ', 'Kent, OH', 'Troy, NY', 'Portland, ME', 'Columbus, GA', 'Jacksonville, NC', 'Durham, NH',
+    'Orange, NJ', 'Portland Maine', 'Seattle, OR',
+  ])('%j does not resolve and gets the notice', (location) => {
+    expect(resolve(location)).toBeUndefined();
+    const result = searchVenues({ item: 'mechanical keyboard', location, delivery: 'both' });
+    expect(result.notices).toEqual([`Couldn't match "${location}" to a city; local links are generic.`]);
+    expect(result.venues.find((v) => v.id === 'craigslist')?.url).toBe('https://www.craigslist.org/about/sites');
+  });
+
+  it.each([
+    ['Portland, OR', 'portland'],
+    ['Portland Oregon', 'portland'],
+    ['Portland', 'portland'],
+    ['Lakewood', 'denver'],
+    ['Lakewood, CO', 'denver'],
+    ['Columbus, OH', 'columbus'],
+    ['Jacksonville, FL', 'jacksonville'],
+    ['Seattle, WA', 'seattle'],
+    ['seattle washington', 'seattle'],
+    ['98101', 'seattle'],
+    ['Jersey City, NJ', 'new-york'],
+    ['Camden, New Jersey', 'philadelphia'],
+    ['Bethesda, MD', 'washington-dc'],
+    ['Kansas City, KS', 'kansas-city'],
+    ['Kansas City, MO', 'kansas-city'],
+    ['Covington, KY', 'cincinnati'],
+    ['Rock Hill, SC', 'charlotte'],
+    ['San José, CA', 'sf-bay-area'],
+  ])('%j resolves to %s', (location, id) => {
+    expect(resolve(location)?.id).toBe(id);
+  });
+});

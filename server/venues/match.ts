@@ -1,4 +1,5 @@
 import type { Category } from '../types.ts';
+import { fold } from './text.ts';
 
 // A letter or digit in any script: the "word" characters for keyword boundaries.
 const WORD_CHAR = '[\\p{L}\\p{N}]';
@@ -29,9 +30,10 @@ function escapeRegExp(text: string): string {
  * Builds a case-insensitive pattern for one keyword: words of a multi-word keyword match as a
  * phrase (any whitespace between them), the last word may take a simple plural ("s" / "es"),
  * and the match must not touch another letter or digit on either side (word boundary).
+ * Diacritics are folded, so test the pattern against `fold(text)`.
  */
 export function keywordPattern(keyword: string): RegExp | undefined {
-  const words = keyword.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const words = fold(keyword).trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return undefined;
   const body = words.map(escapeRegExp).join('\\s+');
   return new RegExp(`(?<!${WORD_CHAR})${body}(?:e?s)?(?!${WORD_CHAR})`, 'iu');
@@ -42,7 +44,7 @@ export function compileCategories(categories: Category[]): CompiledCategory[] {
     const seen = new Set<string>();
     const keywords: CompiledKeyword[] = [];
     for (const raw of category.keywords) {
-      const keyword = raw.trim().toLowerCase().replace(/\s+/g, ' ');
+      const keyword = fold(raw).trim().replace(/\s+/g, ' ');
       if (seen.has(keyword)) continue;
       const pattern = keywordPattern(keyword);
       if (!pattern) continue;
@@ -55,9 +57,10 @@ export function compileCategories(categories: Category[]): CompiledCategory[] {
 
 /** Matched categories, best first: score (distinct keywords matched) desc, then catalog order. */
 export function matchCategories(text: string, compiled: CompiledCategory[]): CategoryMatch[] {
+  const folded = fold(text);
   const matches: CategoryMatch[] = [];
   for (const { category, index, keywords } of compiled) {
-    const hits = keywords.filter(({ pattern }) => pattern.test(text)).map(({ keyword }) => keyword);
+    const hits = keywords.filter(({ pattern }) => pattern.test(folded)).map(({ keyword }) => keyword);
     if (hits.length > 0) matches.push({ category, index, score: hits.length, keywords: hits });
   }
   return matches.sort((a, b) => b.score - a.score || a.index - b.index);

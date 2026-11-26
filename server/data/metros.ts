@@ -2,6 +2,8 @@ import type { Metro } from '../types.ts';
 
 // US metros for local links: the 30 largest metro areas plus a few more.
 // - aliases: lower-case city names (major suburbs included); no alias may appear in two metros.
+//   When a user types a state ("Kent, OH"), a bare alias matches only if the metro is in that
+//   state, so suburbs in another state need a state-qualified alias too ("jersey city nj").
 //   Ambiguous names (Arlington, Glendale, Pasadena, Aurora...) carry a state suffix such as
 //   "arlington tx", so "Arlington, TX" matches but a bare "Arlington" does not guess.
 // - zipPrefixes: 3-digit ZIP prefixes; a prefix belongs to at most one metro.
@@ -17,6 +19,7 @@ export const metros: Metro[] = [
       'new york', 'new york city', 'nyc', 'manhattan', 'brooklyn', 'queens', 'bronx', 'the bronx',
       'staten island', 'long island', 'yonkers', 'white plains', 'new rochelle', 'hempstead', 'jersey city',
       'newark', 'hoboken', 'paterson', 'elizabeth', 'hackensack',
+      'jersey city nj', 'newark nj', 'hoboken nj', 'paterson nj', 'elizabeth nj', 'hackensack nj',
     ],
     zipPrefixes: ['070', '071', '072', '073', '074', '075', '076', '100', '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113', '114', '115', '116', '117', '118'],
     craigslist: 'newyork',
@@ -97,6 +100,8 @@ export const metros: Metro[] = [
       'washington', 'washington dc', 'dc', 'district of columbia', 'arlington va', 'alexandria', 'bethesda',
       'silver spring', 'rockville', 'fairfax', 'reston', 'mclean', 'tysons', 'gaithersburg', 'college park',
       'falls church',
+      'bethesda md', 'silver spring md', 'rockville md', 'gaithersburg md', 'college park md',
+      'alexandria va', 'fairfax va', 'reston va', 'mclean va', 'tysons va', 'falls church va',
     ],
     zipPrefixes: ['200', '201', '202', '203', '204', '205', '206', '207', '208', '209', '220', '221', '222', '223'],
     craigslist: 'washingtondc',
@@ -108,6 +113,7 @@ export const metros: Metro[] = [
     aliases: [
       'philadelphia', 'philly', 'camden', 'cherry hill', 'king of prussia', 'norristown', 'upper darby',
       'chester', 'bensalem', 'media pa',
+      'camden nj', 'cherry hill nj',
     ],
     zipPrefixes: ['080', '081', '189', '190', '191', '193', '194'],
     craigslist: 'philadelphia',
@@ -264,6 +270,7 @@ export const metros: Metro[] = [
     aliases: [
       'charlotte', 'concord nc', 'gastonia', 'huntersville', 'matthews', 'mooresville', 'rock hill',
       'cornelius', 'mint hill',
+      'rock hill sc',
     ],
     zipPrefixes: ['280', '281', '282', '297'],
     craigslist: 'charlotte',
@@ -275,6 +282,7 @@ export const metros: Metro[] = [
     aliases: [
       'st louis', 'saint louis', 'stl', 'st charles', 'saint charles', 'florissant', 'chesterfield',
       'o\'fallon', 'ofallon', 'kirkwood', 'east st louis', 'belleville',
+      'east st louis il', 'belleville il',
     ],
     zipPrefixes: ['620', '622', '630', '631', '633'],
     craigslist: 'stlouis',
@@ -334,7 +342,7 @@ export const metros: Metro[] = [
     id: 'cincinnati',
     name: 'Cincinnati',
     state: 'OH',
-    aliases: ['cincinnati', 'covington', 'newport ky', 'florence ky', 'hamilton oh', 'mason', 'west chester oh', 'fairfield oh'],
+    aliases: ['cincinnati', 'covington', 'newport ky', 'florence ky', 'hamilton oh', 'mason', 'west chester oh', 'fairfield oh', 'covington ky'],
     zipPrefixes: ['410', '450', '451', '452'],
     craigslist: 'cincinnati',
   },
@@ -345,6 +353,7 @@ export const metros: Metro[] = [
     aliases: [
       'kansas city', 'kc', 'overland park', 'olathe', 'independence mo', 'lees summit', 'lee\'s summit',
       'shawnee', 'lenexa', 'leawood',
+      'kansas city ks', 'overland park ks', 'olathe ks', 'shawnee ks', 'lenexa ks', 'leawood ks',
     ],
     zipPrefixes: ['640', '641', '661', '662'],
     craigslist: 'kansascity',

@@ -1,6 +1,7 @@
 import type { Metro } from '../types.ts';
+import { fold } from './text.ts';
 
-// US states (and DC): a trailing abbreviation or name is ignored when matching a city.
+// US states (and DC): a trailing abbreviation or name names the state the user means.
 const STATES: ReadonlyArray<readonly [string, string]> = [
   ['al', 'alabama'], ['ak', 'alaska'], ['az', 'arizona'], ['ar', 'arkansas'], ['ca', 'california'],
   ['co', 'colorado'], ['ct', 'connecticut'], ['de', 'delaware'], ['dc', 'district of columbia'],
@@ -17,21 +18,22 @@ const STATES: ReadonlyArray<readonly [string, string]> = [
 
 const ZIP = /^(\d{3})\d{2}(?:-\d{4})?$/;
 
-/** Lower-case, drop periods ("st. louis", "d.c."), turn commas into spaces, collapse whitespace. */
+/**
+ * Lower-case, fold diacritics, drop periods ("st. louis", "d.c."), turn commas into spaces and
+ * collapse whitespace.
+ */
 export function normalizePlace(text: string): string {
-  return text.toLowerCase().replace(/\./g, '').replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim();
+  return fold(text).replace(/\./g, '').replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-/** Candidate city strings for a normalized place, most specific first. */
-function candidates(place: string): string[] {
-  const out = [place];
+/** Ways to read a trailing state: the city part and the 2-letter code ("seattle wa" -> seattle, wa). */
+function trailingStates(place: string): { base: string; state: string }[] {
+  const out: { base: string; state: string }[] = [];
   for (const [abbr, name] of STATES) {
     for (const suffix of [name, abbr]) {
       if (!place.endsWith(` ${suffix}`)) continue;
       const base = place.slice(0, -(suffix.length + 1)).trim();
-      if (!base) continue;
-      // "arlington virginia" -> "arlington va" (for state-qualified aliases), then "arlington".
-      out.push(`${base} ${abbr}`, base);
+      if (base) out.push({ base, state: abbr });
     }
   }
   return out;
@@ -39,6 +41,14 @@ function candidates(place: string): string[] {
 
 export type MetroResolver = (location: string) => Metro | undefined;
 
+/**
+ * Resolves a US city or ZIP to a metro.
+ * - A 5-digit ZIP (or ZIP+4) matches on its first 3 digits.
+ * - A city matching an alias exactly matches (aliases may carry a state, e.g. "arlington va").
+ * - A city followed by a state ("Seattle, WA", "Seattle Washington") matches the state-qualified
+ *   alias if there is one; otherwise the bare city, but only when the metro's state is that state.
+ *   "Portland, ME" therefore does not match Portland, OR.
+ */
 export function createMetroResolver(metros: Metro[]): MetroResolver {
   const byAlias = new Map<string, Metro>();
   const byZip = new Map<string, Metro>();
@@ -58,9 +68,13 @@ export function createMetroResolver(metros: Metro[]): MetroResolver {
     if (zip) return byZip.get(zip[1]);
     const place = normalizePlace(trimmed);
     if (!place) return undefined;
-    for (const candidate of candidates(place)) {
-      const metro = byAlias.get(candidate);
-      if (metro) return metro;
+    const exact = byAlias.get(place);
+    if (exact) return exact;
+    for (const { base, state } of trailingStates(place)) {
+      const qualified = byAlias.get(`${base} ${state}`);
+      if (qualified) return qualified;
+      const bare = byAlias.get(base);
+      if (bare && bare.state.toLowerCase() === state) return bare;
     }
     return undefined;
   };
