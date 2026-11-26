@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   nodeSettingsFs,
   readSettingsFile,
+  renameWithRetry,
   serializeSettings,
   SETTINGS_UNREADABLE_MESSAGE,
   writeSettingsFile,
@@ -178,5 +179,33 @@ describe('writeSettingsFile (AC3)', () => {
     await expect(writeSettingsFile(join(blocker, 'settings.json'), { REDDIT_USERNAME: 'me' })).rejects.toHaveProperty('code');
     await mkdir(join(dir, 'ok'));
     await writeSettingsFile(join(dir, 'ok', 'settings.json'), { REDDIT_USERNAME: 'me' });
+  });
+});
+
+describe('renameWithRetry (Windows transient locks)', () => {
+  const busy = (code: string) => Object.assign(new Error(code), { code });
+
+  it('retries EPERM / EBUSY / EACCES on win32 with 50, 150, 400 ms waits, then succeeds', async () => {
+    const codes = ['EPERM', 'EBUSY', 'EACCES'];
+    const waits: number[] = [];
+    let calls = 0;
+    const fs = { rename: async () => { calls++; const code = codes.shift(); if (code) throw busy(code); } };
+    await renameWithRetry(fs, 'a', 'b', 'win32', async (ms) => { waits.push(ms); });
+    expect(calls).toBe(4);
+    expect(waits).toEqual([50, 150, 400]);
+  });
+
+  it('gives up after the last wait and rethrows', async () => {
+    const fs = { rename: async () => { throw busy('EBUSY'); } };
+    await expect(renameWithRetry(fs, 'a', 'b', 'win32', async () => {})).rejects.toMatchObject({ code: 'EBUSY' });
+  });
+
+  it('never retries on other platforms or other codes', async () => {
+    let calls = 0;
+    const fs = { rename: async () => { calls++; throw busy('EPERM'); } };
+    await expect(renameWithRetry(fs, 'a', 'b', 'linux', async () => {})).rejects.toMatchObject({ code: 'EPERM' });
+    const fs2 = { rename: async () => { calls++; throw busy('ENOSPC'); } };
+    await expect(renameWithRetry(fs2, 'a', 'b', 'win32', async () => {})).rejects.toMatchObject({ code: 'ENOSPC' });
+    expect(calls).toBe(2);
   });
 });

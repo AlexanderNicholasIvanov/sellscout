@@ -61,7 +61,11 @@ export function secretStateText(state: SettingState, removing: boolean): string 
 export const secretPlaceholder = (state: SettingState): string =>
   state.source === 'settings' ? 'Paste to replace' : 'Paste your key';
 
-/** What the user typed or marked: secret inputs, Removes, and the text fields as shown. */
+/**
+ * What the user typed or marked: secret inputs, Removes, and the text fields as shown. The panel
+ * keeps `secrets` empty in its state: the secret inputs are uncontrolled (React would otherwise
+ * mirror a typed key into the input's `value` attribute) and are read only when saving.
+ */
 export interface Draft {
   secrets: Partial<Record<SettingKey, string>>;
   removals: SettingKey[];
@@ -119,6 +123,20 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
   const saveRef = useRef<HTMLButtonElement>(null);
   const loadRef = useRef<AbortController | null>(null);
   const mounted = useRef(true);
+  const secretInputs = useRef<Partial<Record<SettingKey, HTMLInputElement | null>>>({});
+
+  /** The secret inputs as typed right now (the DOM is their only copy). */
+  function typedSecrets(): Draft['secrets'] {
+    const secrets: Draft['secrets'] = {};
+    for (const [key, input] of Object.entries(secretInputs.current)) {
+      if (input && input.value !== '') secrets[key as SettingKey] = input.value;
+    }
+    return secrets;
+  }
+
+  function clearSecretInputs() {
+    for (const input of Object.values(secretInputs.current)) if (input) input.value = '';
+  }
 
   function fetchSettings() {
     loadRef.current?.abort();
@@ -160,6 +178,8 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
 
   function onRetry() {
     setLoaded({ kind: 'loading' });
+    // Retry is about to disappear: keep focus inside the panel so Escape still closes it.
+    headingRef.current?.focus();
     fetchSettings();
   }
 
@@ -172,7 +192,7 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (loaded.kind !== 'ready' || saving || !loaded.settings.editable) return;
-    const values = changedValues(loaded.settings, draft);
+    const values = changedValues(loaded.settings, { ...draft, secrets: typedSecrets() });
     if (Object.keys(values).length === 0) {
       show('status', NOTHING_TEXT);
       return;
@@ -181,11 +201,13 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
     setMessage(null);
     try {
       const settings = await saveSettings(values);
+      // The header chips live in App: refresh them even if the panel was closed meanwhile.
+      onSaved();
       if (!mounted.current) return;
+      clearSecretInputs();
       setDraft(draftFrom(settings));
       setLoaded({ kind: 'ready', settings });
       show('status', SAVED_TEXT);
-      onSaved();
     } catch (err) {
       if (!mounted.current) return;
       show('alert', `Couldn't save settings: ${err instanceof SettingsError ? err.message : NO_ANSWER}`);
@@ -194,12 +216,14 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
     }
   }
 
-  const toggleRemove = (key: SettingKey) =>
+  const toggleRemove = (key: SettingKey) => {
+    const input = secretInputs.current[key];
+    if (input) input.value = '';
     setDraft((prev) => ({
       ...prev,
-      secrets: { ...prev.secrets, [key]: '' },
       removals: prev.removals.includes(key) ? prev.removals.filter((k) => k !== key) : [...prev.removals, key],
     }));
+  };
 
   return (
     <section id={SETTINGS_PANEL_ID} className="settings" aria-labelledby="settings-heading" onKeyDown={onKeyDown}>
@@ -218,7 +242,8 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
         <form className="settings-form" onSubmit={onSubmit} noValidate>
           <p className="settings-intro">{introText(loaded.settings)}</p>
           {FIELDSETS.map((set) => (
-            <fieldset key={set.legend} className="settings-group">
+            // Locked while saving, so nothing typed meanwhile is lost when the fields reset.
+            <fieldset key={set.legend} className="settings-group" disabled={saving}>
               <legend>{set.legend}</legend>
               {set.fields.map((field) => {
                 const state = loaded.settings.settings[field.key];
@@ -262,10 +287,8 @@ export function SettingsPanel({ onClose, onSaved }: { onClose: () => void; onSav
                         placeholder={secretPlaceholder(state)}
                         disabled={locked || removing}
                         aria-describedby={stateId}
-                        value={draft.secrets[field.key] ?? ''}
-                        onChange={(e) => {
-                          const text = e.target.value;
-                          setDraft((prev) => ({ ...prev, secrets: { ...prev.secrets, [field.key]: text } }));
+                        ref={(el) => {
+                          secretInputs.current[field.key] = el;
                         }}
                       />
                       {state.source === 'settings' ? (

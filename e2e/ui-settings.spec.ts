@@ -183,6 +183,8 @@ test.describe('Settings panel', () => {
     await p.getByLabel('Claude model', { exact: true }).fill('claude-new-model');
     // A blank secret is not a change.
     await p.getByLabel('Reddit client ID', { exact: true }).fill('   ');
+    // A typed key is never mirrored into the markup (a value attribute, a snapshot).
+    expect(await page.content()).not.toContain(SENTINEL);
     await p.getByRole('button', { name: 'Save settings' }).click();
 
     await expect(p.getByRole('status')).toHaveText('Saved. New searches use these keys.');
@@ -199,6 +201,7 @@ test.describe('Settings panel', () => {
     // The header chips are fetched again.
     await expect.poll(() => status.count).toBe(before + 1);
     await expect(page.locator('body')).not.toContainText(SENTINEL);
+    expect(await page.content()).not.toContain(SENTINEL);
   });
 
   test('with nothing changed: "Nothing to save." and no request', async ({ page }) => {

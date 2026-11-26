@@ -76,6 +76,31 @@ export function serializeSettings(values: SettingValues): string {
   return `${JSON.stringify({ version: SETTINGS_FILE_VERSION, values: pickSettingValues(values) }, null, 2)}\n`;
 }
 
+/** Codes Windows returns while an antivirus scan, the indexer or an editor briefly holds a file. */
+const TRANSIENT_RENAME_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+export const RENAME_RETRY_DELAYS_MS: readonly number[] = [50, 150, 400];
+
+/** On win32, retries a rename that failed with a transient lock error, waiting 50, 150, then 400 ms. */
+export async function renameWithRetry(
+  fs: Pick<SettingsFs, 'rename'>,
+  from: string,
+  to: string,
+  platform: NodeJS.Platform = process.platform,
+  wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fs.rename(from, to);
+      return;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException | undefined)?.code ?? '';
+      const delay = RENAME_RETRY_DELAYS_MS[attempt];
+      if (platform !== 'win32' || !TRANSIENT_RENAME_CODES.has(code) || delay === undefined) throw err;
+      await wait(delay);
+    }
+  }
+}
+
 /**
  * Writes the values atomically: the folder is created when missing, the text goes to a new temp
  * file in the same folder (mode 0o600), which is then renamed over the file. On failure the temp
@@ -87,7 +112,7 @@ export async function writeSettingsFile(file: string, values: SettingValues, fs:
   const temp = join(dir, `.${basename(file)}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`);
   try {
     await fs.writeFile(temp, serializeSettings(values), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-    await fs.rename(temp, file);
+    await renameWithRetry(fs, temp, file);
   } catch (err) {
     await fs.rm(temp, { force: true }).catch(() => {});
     throw err;

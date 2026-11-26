@@ -29,8 +29,8 @@ shortcut, and no Node.js needed on the machine.
    `npm run desktop:dist` (after `npm ci`; it writes `release/sellscout-Setup-0.1.0.exe`).
 2. Run it. The installer is not code-signed, so Windows SmartScreen says "Windows protected your
    PC": click **More info**, then **Run anyway**.
-3. Pick the install folder. It installs for your user only (no admin rights) and adds `sellscout`
-   to the Start menu and the desktop.
+3. Pick the install folder. It always installs for your user only (no admin rights, no "all
+   users" choice) and adds `sellscout` to the Start menu and the desktop.
 
 **Running from the repo:** `npm run desktop` builds the UI, bundles the app and opens the window
 (Node 24 and `npm ci` needed). It works from any terminal: the launcher removes
@@ -403,6 +403,8 @@ In [fixture mode](#fixture-mode) Claude is never called; see the Claude fixture 
   They are never logged or sent to the browser.
 - Keys saved in [Settings](#settings) stay in that settings file and in the app's memory,
   never in the browser or any log. The Settings screen never shows a saved secret again.
+  In a regular browser (`npm start`), the browser's password manager may offer to save a key
+  you typed: decline it. The desktop app has no password manager.
 - The desktop window talks only to its own local server, and links open in your default
   browser.
 - Your last location is kept only in this browser's localStorage (`sellscout.location.v1`) and

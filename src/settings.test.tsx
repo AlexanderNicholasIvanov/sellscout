@@ -371,6 +371,35 @@ describe('the Settings panel', () => {
     expect(screen.getByLabelText('Reddit username')).toHaveValue('someone');
   });
 
+  it('never mirrors a typed key into the markup (uncontrolled secret inputs)', async () => {
+    stubFetch([json(response())]);
+    const { container } = render(<SettingsPanel onClose={vi.fn()} onSaved={vi.fn()} />);
+    await userEvent.type(await screen.findByLabelText('Anthropic API key'), SENTINEL);
+    expect(screen.getByLabelText('Anthropic API key')).toHaveValue(SENTINEL);
+    expect(container.innerHTML).not.toContain(SENTINEL);
+  });
+
+  it('locks the fields while saving, and still refreshes the chips if the panel closed meanwhile', async () => {
+    let answer: (r: Response) => void = () => {};
+    stubFetch([json(response())], () => new Promise<Response>((resolve) => (answer = resolve)));
+    const onSaved = vi.fn();
+    const { unmount } = render(<SettingsPanel onClose={vi.fn()} onSaved={onSaved} />);
+    await userEvent.type(await screen.findByLabelText('Reddit username'), 'someone');
+    await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    expect(screen.getByLabelText('Reddit username')).toBeDisabled();
+    expect(screen.getByLabelText('Anthropic API key')).toBeDisabled();
+    unmount();
+    answer(json(response({ REDDIT_USERNAME: text('settings', 'someone') })));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  });
+
+  it('Retry keeps focus inside the panel', async () => {
+    stubFetch([json({ error: 'Internal error' }, 500), json(response())]);
+    renderPanel();
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(screen.getByRole('heading', { name: 'Settings' })).toHaveFocus();
+  });
+
   it('shows the load failure and Retry loads again', async () => {
     const fetchMock = stubFetch([json({ error: 'Internal error' }, 500), json(response())]);
     renderPanel();

@@ -131,7 +131,10 @@ export async function startServer(options: StartOptions): Promise<Server> {
     let queue: Promise<unknown> = Promise.resolve();
     const save: SettingsController['update'] = async (update) => {
       if (file === null) return { ok: false, reason: 'read-only' };
-      const next = applySettingsUpdate(saved, update);
+      // Re-read first: `npm start` and the desktop app share the file, so another process may
+      // have saved since this one started. Unreadable here is {} silently (logged at start).
+      const current = await readSettingsFile(file, { log: () => {} });
+      const next = applySettingsUpdate(current, update);
       try {
         await writeSettingsFile(file, next);
       } catch (err) {

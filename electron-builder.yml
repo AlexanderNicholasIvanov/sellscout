@@ -26,6 +26,8 @@ nsis:
   perMachine: false
   allowElevation: false
   allowToChangeInstallationDirectory: true
+  # Skips the install-mode page: always "Only for me".
+  include: desktop/resources/installer.nsh
   createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: sellscout

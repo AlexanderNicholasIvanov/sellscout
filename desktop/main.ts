@@ -59,6 +59,10 @@ function run(): void {
     };
     contents.on('will-navigate', guardNavigation);
     contents.on('will-redirect', guardNavigation);
+    // Sub-frames (the UI has none) may never leave sellscout://app either, and open nothing.
+    contents.on('will-frame-navigate', (event) => {
+      if (!event.isMainFrame && !isAppUrl(event.url)) event.preventDefault();
+    });
     void win.loadURL(APP_URL);
   }
 
@@ -91,6 +95,8 @@ function run(): void {
       // Every permission (geolocation, notifications, camera, ...) is denied.
       session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
       session.defaultSession.setPermissionCheckHandler(() => false);
+      // The app never downloads anything: refuse every download (no save dialog).
+      session.defaultSession.on('will-download', (event) => event.preventDefault());
 
       const config = readConfig(env);
       // Fixture mode: no request may leave the machine, as with `npm start`.

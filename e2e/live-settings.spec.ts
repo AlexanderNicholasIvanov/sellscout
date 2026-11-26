@@ -1,6 +1,5 @@
 // Run 5, AC11: Settings against the real fixture server, saving to the temp file in
-// SELLSCOUT_SETTINGS_FILE (playwright.config.ts). Tagged @needs-settings-api: it needs the
-// server's /api/settings.
+// SELLSCOUT_SETTINGS_FILE (playwright.config.ts).
 import { existsSync, readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Locator, Page } from '@playwright/test';
@@ -50,10 +49,15 @@ test.describe('live Settings (fixture server, temp settings file)', () => {
     await clearAll(request);
   });
 
-  test('AC11: save a fake Anthropic key and a model, reopen, then remove the key @needs-settings-api', async ({
+  test('AC11: save a fake Anthropic key and a model, reopen, then remove the key', async ({
     page,
   }) => {
     const blocked = await blockExternalRequests(page);
+    // Every /api/settings answer from the real server, to prove the key never comes back.
+    const settingsBodies: Promise<string>[] = [];
+    page.on('response', (response) => {
+      if (new URL(response.url()).pathname === '/api/settings') settingsBodies.push(response.text());
+    });
     await page.goto('/');
     await expect(page.locator('header .chip', { hasText: 'Claude: fixture' })).toBeVisible();
 
@@ -78,6 +82,10 @@ test.describe('live Settings (fixture server, temp settings file)', () => {
     await expect(key).toHaveAttribute('placeholder', 'Paste to replace');
     await expect(p.getByLabel('Claude model', { exact: true })).toHaveValue(MODEL);
     await expect(page.locator('body')).not.toContainText(SENTINEL);
+    expect(await page.content()).not.toContain(SENTINEL);
+    const bodies = await Promise.all(settingsBodies);
+    expect(bodies.length).toBeGreaterThanOrEqual(3); // 2 GETs and the PUT
+    for (const body of bodies) expect(body).not.toContain(SENTINEL);
 
     // The file holds both values.
     expect(existsSync(E2E_SETTINGS_FILE)).toBe(true);

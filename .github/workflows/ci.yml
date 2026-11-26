@@ -50,13 +50,14 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run desktop:bundle
-      # Electron downloads its binary here, on first use.
+      # Electron downloads its binary on first use: do it as its own step, outside the test budget.
+      - run: node -e "require('electron')"
       - run: npm run e2e:desktop
       - run: npx electron-builder --win nsis --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: sellscout-windows-installer
-          path: release/*.exe
+          path: release/sellscout-Setup-*.exe
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@v4

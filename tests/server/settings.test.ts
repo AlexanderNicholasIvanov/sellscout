@@ -475,3 +475,17 @@ describe('isAllowedOrigin', () => {
     }
   });
 });
+
+describe('two processes sharing one settings file (npm start + the desktop app)', () => {
+  it('a save re-reads the file first, so it keeps what the other process saved', async () => {
+    const first = await startWith();
+    const second = await startWith();
+    expect((await putSettings(first, { values: { ANTHROPIC_API_KEY: KEY } })).status).toBe(200);
+    expect((await putSettings(second, { values: { REDDIT_USERNAME: 'someone' } })).status).toBe(200);
+    const saved = JSON.parse(await readFile(file, 'utf8')) as { values: Record<string, string> };
+    expect(saved.values).toEqual({ ANTHROPIC_API_KEY: KEY, REDDIT_USERNAME: 'someone' });
+    const answer = settingsOf(await getSettings(second));
+    expect(answer.settings.ANTHROPIC_API_KEY.source).toBe('settings');
+    expect(await status(second)).toMatchObject({ claude: true });
+  });
+});

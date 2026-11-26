@@ -166,7 +166,7 @@ test('AC14: the page reaches its server through sellscout://app (the 404 for oth
   expect(status.body).toMatchObject({ fixtures: true, claude: false });
 });
 
-test('AC14: Settings saves to the temp file @needs-settings-api @needs-settings-ui', async () => {
+test('AC14: Settings saves to the temp file', async () => {
   const { page } = await launch();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const panel = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Settings' }) });
