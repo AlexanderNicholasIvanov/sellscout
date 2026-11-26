@@ -111,6 +111,11 @@ describe('isSearchResult: the ebay object', () => {
       { ...ebay, priceRange: omit(range, key) },
     ]),
     ['a priceRange with a string median', { ...ebay, priceRange: { ...range, median: '110' } }],
+    ['unavailable without a reason', { ...omit(ebay, 'priceRange'), status: 'unavailable', listings: [] }],
+    ['a reason on an ok result', { ...ebay, reason: 'x' }],
+    ['listings on a disabled result', { ...omit(ebay, 'priceRange'), status: 'disabled' }],
+    ['a priceRange on a disabled result', { ...ebay, status: 'disabled', listings: [] }],
+    ['a priceRange on an unavailable result', { ...ebay, status: 'unavailable', reason: 'x', listings: [] }],
   ];
 
   it.each(bad)('%s: isSearchResult is false and search() throws', async (_label, e) => {

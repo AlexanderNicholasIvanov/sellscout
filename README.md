@@ -223,8 +223,9 @@ to see similar listings and asking prices" and still gives the **Search eBay you
 **Getting keys**
 1. Sign up at <https://developer.ebay.com> and create a **Production** keyset.
 2. **Marketplace Account Deletion:** eBay won't enable a production keyset until you subscribe
-   to its Marketplace Account Deletion notifications or apply for an exemption. sellscout stores
-   no eBay user data, so choose the exemption ("I do not persist eBay data").
+   to its Marketplace Account Deletion notifications or opt out. sellscout stores no eBay user
+   data, so opt out: on the keyset's Marketplace Account Deletion page, turn on
+   **Not persisting eBay data**, confirm, pick the exemption reason that fits and submit.
 3. Put the keyset's App ID and Cert ID into `.env` in the repo root (see `.env.example`), then
    restart sellscout:
 
@@ -250,8 +251,9 @@ and delivery choice are never sent to eBay.
 - Up to 10 listings are shown, in eBay's order.
 
 **Limits**
-- About 5,000 Browse API calls per day by default. Each search uses 1, plus a token about every
-  2 hours.
+- About 5,000 Browse API calls per day by default. Each search uses 1 Browse call (2 if eBay
+  asks for a fresh token mid-search). The app token comes from eBay's separate OAuth endpoint,
+  about once every 2 hours.
 - Each request gives up after 10 s, and the whole eBay search after 20 s. eBay and Reddit are
   searched at the same time.
 - When eBay fails, the section says why (for example "eBay search unavailable: eBay rate limit

@@ -105,7 +105,11 @@ function isEbayResult(value: unknown): value is EbayResult {
     typeof value.searchUrl === 'string' &&
     Array.isArray(value.listings) &&
     value.listings.every(isEbayListing) &&
-    (value.priceRange === undefined || isPriceRange(value.priceRange))
+    (value.priceRange === undefined || isPriceRange(value.priceRange)) &&
+    // Fields that only go with one status: a reason only when unavailable, listings and a
+    // range only when ok.
+    (value.status === 'unavailable') === (typeof value.reason === 'string') &&
+    (value.status === 'ok' || (value.listings.length === 0 && value.priceRange === undefined))
   );
 }
 

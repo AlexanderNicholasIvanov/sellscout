@@ -45,6 +45,8 @@ describe('toListing (AC7)', () => {
     ['a price of 0', item('a', '0.00')],
     ['a negative price', item('a', '-5.00')],
     ['a non-numeric price', item('a', 'abc')],
+    ['a hex price string', item('a', '0x10')],
+    ['an exponent price string', item('a', '1e3')],
     ['an infinite price', item('a', 'Infinity')],
     ['a NaN price', item('a', Number.NaN)],
     ['a price value that is an object', item('a', '1', { price: { value: {}, currency: 'USD' } })],

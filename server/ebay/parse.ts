@@ -21,7 +21,8 @@ export const roundCents = (value: number): number => Math.round((value + Number.
 function usdPrice(price: unknown): number | undefined {
   if (!isRecord(price) || price.currency !== 'USD') return undefined;
   const { value } = price;
-  const amount = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  // eBay sends plain decimal strings ("129.99"); hex, exponents and signs are not prices.
+  const amount = typeof value === 'number' ? value : typeof value === 'string' && /^\d+(\.\d+)?$/.test(value.trim()) ? Number(value) : NaN;
   return Number.isFinite(amount) && amount > 0 ? roundCents(amount) : undefined;
 }
 

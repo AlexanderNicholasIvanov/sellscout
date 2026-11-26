@@ -16,7 +16,7 @@ async function search(page: Page, item: string) {
   await expect(page.getByRole('button', { name: 'Search', exact: true })).toBeEnabled();
 }
 
-test.describe('live eBay @needs-ebay-source', () => {
+test.describe('live eBay', () => {
   let blocked: string[] = [];
 
   test.beforeEach(async ({ page }) => {
@@ -119,13 +119,10 @@ test.describe('live eBay @needs-ebay-source', () => {
     ['ebay-timeout widget', 'eBay took too long to answer'],
   ] as const) {
     test(`"${item}" shows "${reason}"`, async ({ page }) => {
-      test.setTimeout(60_000);
       await page.getByLabel('What are you selling?').fill(item);
       await page.getByRole('button', { name: 'Search', exact: true }).click();
-      // A timeout may take the real 10 s request timeout to come back.
-      await expect(ebay(page).locator('.ebay-message')).toHaveText(`eBay search unavailable: ${reason}`, {
-        timeout: 30_000,
-      });
+      // The fixture fails `ebay-timeout` at once with the timeout error, so no long wait.
+      await expect(ebay(page).locator('.ebay-message')).toHaveText(`eBay search unavailable: ${reason}`);
     });
   }
 

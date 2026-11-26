@@ -61,7 +61,7 @@ describe('README (run 3, AC15)', () => {
     expect(headings.indexOf('eBay')).toBe(headings.indexOf('Reddit') + 1);
   });
 
-  it.each(['EBAY_CLIENT_ID', 'EBAY_CLIENT_SECRET', 'Marketplace Account Deletion', 'I do not persist eBay data'])(
+  it.each(['EBAY_CLIENT_ID', 'EBAY_CLIENT_SECRET', 'Marketplace Account Deletion', 'Not persisting eBay data'])(
     'the eBay section mentions %s',
     (phrase) => {
       expect(section('eBay')).toContain(phrase);
