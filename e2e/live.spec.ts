@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
 
-test('live: mechanical keyboard lists r/mechmarket with why, tips and links @needs-claude-planner', async ({ page }) => {
+test('live: mechanical keyboard lists r/mechmarket with why, tips and links', async ({ page }) => {
   await page.getByLabel('What are you selling?').fill('mechanical keyboard');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
 
@@ -28,7 +28,7 @@ test('live: mechanical keyboard lists r/mechmarket with why, tips and links @nee
   );
 });
 
-test('live: an unmatched item shows the no-match notice and general venues only @needs-claude-planner', async ({ page }) => {
+test('live: an unmatched item shows the no-match notice and general venues only', async ({ page }) => {
   await page.getByLabel('What are you selling?').fill('asdfgh');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(

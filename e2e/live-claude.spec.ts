@@ -29,7 +29,7 @@ test.describe('live Claude', () => {
     expect(blocked).toEqual([]);
   });
 
-  test('AC13: "mechanical keyboard" is via Claude with the AI-suggested r/MechanicalKeyboards @needs-claude-planner', async ({
+  test('AC13: "mechanical keyboard" is via Claude with the AI-suggested r/MechanicalKeyboards', async ({
     page,
   }) => {
     await search(page, 'mechanical keyboard');
@@ -56,7 +56,7 @@ test.describe('live Claude', () => {
     await expect(page.locator('.ebay')).toContainText('Searched eBay for "mechanical keyboard"');
   });
 
-  test('AC13: "claude-refusal" shows the Claude notice and "via built-in catalog" @needs-claude-planner', async ({
+  test('AC13: "claude-refusal" shows the Claude notice and "via built-in catalog"', async ({
     page,
   }) => {
     await search(page, 'claude-refusal');
@@ -67,7 +67,7 @@ test.describe('live Claude', () => {
     await expect(page.getByText('AI suggested', { exact: true })).toHaveCount(0);
   });
 
-  test('AC13: the fixture-mode server shows "Claude: fixture" @needs-claude-planner', async ({ page }) => {
+  test('AC13: the fixture-mode server shows "Claude: fixture"', async ({ page }) => {
     await expect(page.locator('header .chip')).toHaveText([
       'Reddit: fixture',
       'eBay: fixture',
