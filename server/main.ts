@@ -1,37 +1,27 @@
-// sellscout API + UI server: node:http only, loopback only.
-import { createServer } from 'node:http';
-import type { IncomingMessage, Server, ServerResponse } from 'node:http';
+// sellscout API + UI server: node:http only, loopback only. `node server/main.ts` starts it.
+import { existsSync, realpathSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createApp } from './app.ts';
-import type { RequestHandler } from './app.ts';
-import { createClaudePlanner } from './claude/index.ts';
-import { hasClaudeKey, hasEbayKeys, hasRedditKeys, readConfig } from './config.ts';
+import { readConfig } from './config.ts';
 import type { AppConfig } from './config.ts';
-import { createEbaySearch } from './ebay/index.ts';
 import { installFetchGuard } from './fetch-guard.ts';
-import { createFixtureStore } from './reddit/fixtures/store.ts';
-import { createBuyerSearch } from './reddit/index.ts';
-import { createSearchService } from './search.ts';
-import type { SearchFn } from './types.ts';
-import { searchVenues } from './venues/index.ts';
+import { resolveSettingsFile } from './settings/path.ts';
+import { HOST, startServer } from './start.ts';
 
 // parsePort moved to config.ts; re-exported so existing imports keep working.
 export { DEFAULT_PORT, parsePort } from './config.ts';
-export const HOST = '127.0.0.1';
+// startServer moved to start.ts; re-exported so existing imports keep working.
+export { DIST_DIR, HOST, readVersion, startServer } from './start.ts';
+export type { StartOptions } from './start.ts';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
-export const DIST_DIR = join(repoRoot, 'dist');
 export const DOTENV_PATH = join(repoRoot, '.env');
 
 export const FIXTURE_MODE_MESSAGE = 'sellscout: fixture mode (canned Reddit data, outbound requests blocked)';
 
-export function readVersion(): string {
-  const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as { version: string };
-  return pkg.version;
-}
+/** Printed at start when Settings can save keys (the file is not null). */
+export const settingsFileMessage = (file: string): string => `sellscout: settings file ${file}`;
 
 export interface DotEnvDeps {
   /** The real environment, before any `.env` is loaded. */
@@ -61,90 +51,35 @@ export interface PrepareDeps extends Omit<DotEnvDeps, 'env'> {
 
 /**
  * Start-up order that keeps fixture mode safe: read `SELLSCOUT_FIXTURES` from the real
- * environment, then maybe load `.env`, then read the config with fixture mode forced to the real
- * value (so `.env` cannot switch it on), then install the fetch guard in fixture mode.
+ * environment, then maybe load `.env`, then copy the environment with fixture mode forced to the
+ * real value (so `.env` cannot switch it on), then install the fetch guard in fixture mode.
+ * Returns that copy: what `readConfig` and the Settings screen read.
  */
-export function prepareConfig(deps: PrepareDeps): AppConfig {
+export function prepareEnv(deps: PrepareDeps): Record<string, string | undefined> {
   const fixtures = deps.env.SELLSCOUT_FIXTURES === '1';
   loadDotEnv(deps);
-  const config = readConfig({ ...deps.env, SELLSCOUT_FIXTURES: fixtures ? '1' : '' });
-  if (config.fixtures) {
+  const env = { ...deps.env, SELLSCOUT_FIXTURES: fixtures ? '1' : '' };
+  if (fixtures) {
     deps.installGuard();
     deps.log(FIXTURE_MODE_MESSAGE);
   }
-  return config;
+  return env;
 }
 
-export interface StartOptions {
-  /** 0 picks a free port (tests). */
-  port: number;
-  host?: string;
-  search?: SearchFn;
-  version?: string;
-  distDir?: string;
-  /** Default: no Reddit keys, fixtures off. */
-  config?: AppConfig;
+/** `prepareEnv`, then the config it gives. */
+export function prepareConfig(deps: PrepareDeps): AppConfig {
+  return readConfig(prepareEnv(deps));
 }
 
-/** Starts listening; resolves once bound, rejects with the listen error (e.g. EADDRINUSE). */
-export function startServer(options: StartOptions): Promise<Server> {
-  const host = options.host ?? HOST;
-  const config = options.config ?? readConfig({});
-  const version = options.version ?? readVersion();
-  // Fixture mode: one store shared by the buyer search and POST /api/__fixtures. Off, or an
-  // injected `search` that would never read it: no store, so that route 404s.
-  const fixtureStore = config.fixtures && options.search === undefined ? createFixtureStore() : undefined;
-  // Late-bound so the fixture-mode fetch guard applies to every request.
-  const lateFetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init);
-  const search =
-    options.search ??
-    createSearchService({
-      venues: searchVenues,
-      buyers: createBuyerSearch({
-        config,
-        version,
-        fetch: lateFetch,
-        fixtureStore,
-      }),
-      ebay: createEbaySearch({ config, fetch: lateFetch }),
-      // Off without a key (no SDK client is built); the stand-in client in fixture mode.
-      planner: createClaudePlanner({ config, fetch: lateFetch }),
-    });
-  // The app needs the bound port for its Host check, which is only known after listen (port 0).
-  let app: RequestHandler | undefined;
-  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    if (app) app(req, res);
-    else res.writeHead(503).end();
-  });
-
-  return new Promise((resolve, reject) => {
-    const onListenError = (err: Error): void => reject(err);
-    server.once('error', onListenError);
-    server.listen(options.port, host, () => {
-      server.off('error', onListenError);
-      server.on('error', (err) => console.error(err.stack ?? err.message));
-      const { port } = server.address() as AddressInfo;
-      app = createApp({
-        search,
-        version,
-        port,
-        distDir: options.distDir ?? DIST_DIR,
-        status: {
-          redditAuth: hasRedditKeys(config),
-          fixtures: config.fixtures,
-          ebay: hasEbayKeys(config),
-          claude: hasClaudeKey(config),
-        },
-        fixtures: fixtureStore,
-      });
-      resolve(server);
-    });
-  });
+/** The settings file `npm start` uses (absolute), or null when Settings is read-only. */
+export function startSettingsFile(env: Record<string, string | undefined>): string | null {
+  const file = resolveSettingsFile(env);
+  return file === null ? null : resolve(file);
 }
 
 async function main(): Promise<void> {
   // Fixture mode comes from the real environment only: setting it in .env has no effect.
-  const config = prepareConfig({
+  const env = prepareEnv({
     env: process.env,
     exists: existsSync,
     load: (path) => process.loadEnvFile(path),
@@ -154,14 +89,18 @@ async function main(): Promise<void> {
     },
     log: (message) => console.log(message),
   });
+  const config = readConfig(env);
   const { port } = config;
   if (port === null) {
     console.error('PORT must be a number between 1 and 65535');
     process.exitCode = 1;
     return;
   }
+  // After `.env`, so SELLSCOUT_SETTINGS_FILE works there too.
+  const file = startSettingsFile(env);
+  if (file !== null) console.log(settingsFileMessage(file));
   try {
-    const server = await startServer({ port, config });
+    const server = await startServer({ port, config, settings: { file, env } });
     const { port: bound } = server.address() as AddressInfo;
     console.log(`sellscout running at http://${HOST}:${bound}`);
   } catch (err) {

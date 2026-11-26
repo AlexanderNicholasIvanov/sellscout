@@ -159,3 +159,52 @@ describe('README (run 4, AC15)', () => {
     expect(section('Roadmap')).toMatch(/4\. \*\*Smarter matching with Claude\.\*\*[^]*?\(done/);
   });
 });
+
+describe('README (run 5, AC16)', () => {
+  const section = (name: string) =>
+    readme.split(/^## /m).find((s) => s.startsWith(`${name}\n`) || s.startsWith(`${name}\r\n`)) ?? '';
+
+  it.each(['## Desktop app', '## Settings', 'npm run desktop', 'SELLSCOUT_SETTINGS_FILE', 'Run anyway'])('mentions %s', (phrase) => {
+    expect(readme).toContain(phrase);
+  });
+
+  it('has "Desktop app" right before "Setup", and a "Settings" section', () => {
+    expect(headings).toContain('Desktop app');
+    expect(headings.indexOf('Setup')).toBe(headings.indexOf('Desktop app') + 1);
+    expect(headings).toContain('Settings');
+  });
+
+  it('the Desktop app section covers installing, SmartScreen, npm run desktop, the settings file, uninstalling and .env', () => {
+    const desktop = section('Desktop app');
+    for (const phrase of [
+      'sellscout-windows-installer',
+      'npm run desktop:dist',
+      'More info',
+      'Run anyway',
+      'npm run desktop',
+      'settings.json',
+      'Uninstall',
+      "doesn't read `.env`",
+    ]) {
+      expect(desktop).toContain(phrase);
+    }
+  });
+
+  it('the Settings section covers the file, the environment winning, read-only and plain text', () => {
+    const settings = section('Settings');
+    for (const phrase of ['SELLSCOUT_SETTINGS_FILE', 'environment', 'wins', 'read-only', 'plain text', 'user profile']) {
+      expect(settings).toContain(phrase);
+    }
+  });
+
+  it('keeps Settings and the desktop window in the Privacy section', () => {
+    const privacy = section('Privacy');
+    expect(privacy).toContain('Keys saved in [Settings](#settings) stay in that settings file');
+    expect(privacy).toContain('never in the browser or any log');
+    expect(privacy).toContain('The desktop window talks only to its own local server');
+  });
+
+  it('marks 5 done on the Roadmap', () => {
+    expect(section('Roadmap')).toMatch(/5\. \*\*Desktop app and Settings\.\*\*[^]*?\(done/);
+  });
+});

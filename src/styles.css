@@ -295,11 +295,20 @@ select {
   max-width: 12rem;
 }
 
+/* The status chips and the Settings button, under the tagline. */
+.header-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: -0.75rem 0 1.25rem;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  margin: -0.75rem 0 1.25rem;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -536,6 +545,103 @@ select {
   color: var(--accent-text);
   background: var(--accent);
   vertical-align: 0.1em;
+}
+
+/* Settings panel (run 5): shown above the search form. */
+.settings {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+
+/* Empty live regions stay in the page (so they announce) but take no space. */
+.settings > * + :not(:empty) {
+  margin-top: 1rem;
+}
+
+.settings-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.settings p {
+  margin: 0;
+}
+
+.settings-intro,
+.settings-loading {
+  color: var(--muted);
+}
+
+.settings-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.settings-group {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem 1rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.settings-group legend {
+  padding: 0 0.35rem;
+  font-weight: 600;
+}
+
+input[type='password'] {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.secret-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.secret-row input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.settings-message {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.settings .alert-region .alert {
+  margin: 0;
+}
+
+.settings .secondary:disabled,
+.settings .submit:disabled {
+  cursor: not-allowed;
 }
 
 a {

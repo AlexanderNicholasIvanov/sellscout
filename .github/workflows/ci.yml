@@ -6,6 +6,9 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      # These jobs never launch Electron: skip its ~100 MB binary.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,6 +22,8 @@ jobs:
       - run: npm run build
   e2e:
     runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,5 +37,32 @@ jobs:
         if: failure()
         with:
           name: playwright-traces
+          path: test-results/
+          retention-days: 7
+  desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run desktop:bundle
+      # Electron downloads its binary on first use: do it as its own step, outside the test budget.
+      - run: node -e "require('electron')"
+      - run: npm run e2e:desktop
+      - run: npx electron-builder --win nsis --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sellscout-windows-installer
+          path: release/sellscout-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-desktop-traces
           path: test-results/
           retention-days: 7

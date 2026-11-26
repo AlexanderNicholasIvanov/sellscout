@@ -18,6 +18,39 @@ see [Reddit](#reddit). With eBay keys, eBay receives the search term only; see [
 With an Anthropic key, Claude receives the item text and the catalog's category list; see
 [Claude](#claude-optional).
 
+## Desktop app
+
+sellscout also runs as a Windows desktop app: its own window, a Start-menu entry and a desktop
+shortcut, and no Node.js needed on the machine.
+
+**Installing**
+1. Get the installer, `sellscout-Setup-<version>.exe`: download the `sellscout-windows-installer`
+   artifact from a CI run on GitHub (Actions, the run's Summary page), or build it yourself with
+   `npm run desktop:dist` (after `npm ci`; it writes `release/sellscout-Setup-0.1.0.exe`).
+2. Run it. The installer is not code-signed, so Windows SmartScreen says "Windows protected your
+   PC": click **More info**, then **Run anyway**.
+3. Pick the install folder. It always installs for your user only (no admin rights, no "all
+   users" choice) and adds `sellscout` to the Start menu and the desktop.
+
+**Running from the repo:** `npm run desktop` builds the UI, bundles the app and opens the window
+(Node 24 and `npm ci` needed). It works from any terminal: the launcher removes
+`ELECTRON_RUN_AS_NODE`, which some editors' terminals set.
+
+**How it works**
+- The app runs the same server inside itself, on a random port on 127.0.0.1, and the window
+  shows it at `sellscout://app/`. Your location and saved searches stay in the window's own
+  storage, whatever port the server gets.
+- Paste your keys in [Settings](#settings). The desktop app doesn't read `.env`; keys set in the
+  environment still win.
+- The settings file is `%APPDATA%\sellscout\settings.json`, the same file `npm start` uses. The
+  window's storage (location, saved searches) is in the same `%APPDATA%\sellscout` folder.
+- Links open in your default browser, and the window never leaves sellscout.
+- `SELLSCOUT_FIXTURES=1` works here too, for a demo with no keys.
+
+**Uninstalling:** use Windows Settings > Apps > Installed apps > sellscout > Uninstall. The
+uninstaller leaves `%APPDATA%\sellscout` (your saved keys and searches); delete that folder to
+remove them too.
+
 ## Setup
 
 Requires Node.js 24 or newer.
@@ -45,7 +78,8 @@ server on 5173, which proxies `/api` to the API. Ctrl+C stops both.
 `.env.example`). It holds the optional [Reddit](#reddit) keys (`REDDIT_CLIENT_ID`,
 `REDDIT_CLIENT_SECRET`, `REDDIT_USERNAME`), [eBay](#ebay) keys (`EBAY_CLIENT_ID`,
 `EBAY_CLIENT_SECRET`) and the [Claude](#claude-optional) key (`ANTHROPIC_API_KEY`, plus the
-optional `SELLSCOUT_CLAUDE_MODEL`).
+optional `SELLSCOUT_CLAUDE_MODEL`). You can paste the same keys in [Settings](#settings)
+instead; a value in `.env` wins over a saved one.
 
 ### Fixture mode
 
@@ -131,6 +165,33 @@ Header chips show whether Reddit, eBay and Claude are on.
 
 The page works with the keyboard alone and on narrow (375 px) screens.
 
+## Settings
+
+The **Settings** button in the header opens the Settings panel, where you paste the
+[Reddit](#reddit), [eBay](#ebay) and [Claude](#claude-optional) keys instead of editing `.env`.
+**Save settings** saves them, and new searches use them right away, with no restart. It works
+the same in `npm start` and the desktop app.
+
+- **Fields:** the Anthropic API key and the Claude model, the eBay App ID and Cert ID, and the
+  Reddit client ID, client secret and username.
+- **Secret keys** are never shown again once saved: their field says `Saved`, `Not set` or
+  `Set in the environment (read-only)`. Paste a new key to replace one, or press **Remove**,
+  then **Save settings**, to delete it.
+- **Which value wins:** the environment, `.env` included, wins over a saved value. A key set
+  there is shown as set in the environment, and its field is read-only.
+- **Where:** one file per user, `settings.json` in `%APPDATA%\sellscout` on Windows,
+  `~/Library/Application Support/sellscout` on macOS and `$XDG_CONFIG_HOME/sellscout` (or
+  `~/.config/sellscout`) elsewhere. Set `SELLSCOUT_SETTINGS_FILE` to use another file. `npm start`
+  prints the path it uses.
+- **Plain text:** the values are saved as plain text in your user profile, like `.env`. Anyone
+  who can read your files can read them. The file holds only the seven keys above.
+- **Read-only:** in fixture mode and under tests (`NODE_ENV=test`) there is no settings file
+  unless `SELLSCOUT_SETTINGS_FILE` is set, and the panel says "Settings are read-only here. Set
+  keys in .env or the environment." Fixture mode still ignores every key.
+- If the file can't be read, sellscout starts with no saved keys, and the next save replaces it.
+  `PORT`, `SELLSCOUT_FIXTURES`, `SELLSCOUT_FIXTURE_DELAY_MS` and `SELLSCOUT_SETTINGS_FILE` come
+  from the environment only.
+
 ## Checks
 
 ```sh
@@ -139,6 +200,7 @@ npm run typecheck   # tsc over src, server, tests, e2e and configs
 npm test            # vitest: server, engine, data and UI helper tests
 npm run build       # type check + Vite production build
 npm run e2e         # Playwright (chromium); starts its own server on port 5181
+npm run e2e:desktop # Playwright + Electron: the desktop app in fixture mode (after build and desktop:bundle)
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same commands on every pull request and on every push
@@ -183,8 +245,8 @@ prefixes or aliases.
 
 **People looking for it** uses Reddit's official API, which needs app keys. Anonymous access is
 shut off: keyless requests to Reddit's JSON pages got HTTP 403 (checked on 2026-11-25). Without
-keys sellscout makes no Reddit request at all. It says "Add Reddit app keys to see live posts
-here" and still gives the look-yourself links.
+keys sellscout makes no Reddit request at all. It says "Add Reddit app keys in Settings to see
+live posts here" and still gives the look-yourself links.
 
 **Getting keys**
 1. Sign in to Reddit and open <https://www.reddit.com/prefs/apps>.
@@ -192,7 +254,8 @@ here" and still gives the look-yourself links.
    and never posts.
 3. Reddit approves new API apps by hand under its Responsible Builder Policy, so access can take
    a while or be refused.
-4. Put the keys in `.env` in the repo root (see `.env.example`), then restart sellscout:
+4. Paste the keys in [Settings](#settings), or put them in `.env` in the repo root (see
+   `.env.example`) and restart sellscout:
 
 ```sh
 REDDIT_CLIENT_ID=<the id shown under the app name>
@@ -232,7 +295,7 @@ matched; no Craigslist link with "Ship it"). They need no keys.
 
 **Similar listings on eBay** uses eBay's official Browse API, which needs your own free eBay
 developer keys. Without keys sellscout makes no eBay request at all. It says "Add eBay app keys
-to see similar listings and asking prices" and still gives the **Search eBay yourself** link.
+in Settings to see similar listings and asking prices" and still gives the **Search eBay yourself** link.
 
 **Getting keys**
 1. Sign up at <https://developer.ebay.com> and create a **Production** keyset.
@@ -240,8 +303,8 @@ to see similar listings and asking prices" and still gives the **Search eBay you
    to its Marketplace Account Deletion notifications or opt out. sellscout stores no eBay user
    data, so opt out: on the keyset's Marketplace Account Deletion page, turn on
    **Not persisting eBay data**, confirm, pick the exemption reason that fits and submit.
-3. Put the keyset's App ID and Cert ID into `.env` in the repo root (see `.env.example`), then
-   restart sellscout:
+3. Paste the keyset's App ID and Cert ID in [Settings](#settings), or put them into `.env` in the
+   repo root (see `.env.example`) and restart sellscout:
 
 ```sh
 EBAY_CLIENT_ID=<the App ID (Client ID)>
@@ -287,7 +350,8 @@ The "Understood as" line then ends "via Claude", and the header shows "Claude: o
 
 **Getting a key**
 1. Create an API key at <https://console.anthropic.com>.
-2. Put it in `.env` in the repo root (see `.env.example`), then restart sellscout:
+2. Paste it in [Settings](#settings), or put it in `.env` in the repo root (see `.env.example`)
+   and restart sellscout:
 
 ```sh
 ANTHROPIC_API_KEY=<your key>
@@ -337,6 +401,12 @@ In [fixture mode](#fixture-mode) Claude is never called; see the Claude fixture 
 - Reddit, eBay and Anthropic keys, and the eBay access token, stay in `.env` and in the
   server's memory.
   They are never logged or sent to the browser.
+- Keys saved in [Settings](#settings) stay in that settings file and in the app's memory,
+  never in the browser or any log. The Settings screen never shows a saved secret again.
+  In a regular browser (`npm start`), the browser's password manager may offer to save a key
+  you typed: decline it. The desktop app has no password manager.
+- The desktop window talks only to its own local server, and links open in your default
+  browser.
 - Your last location is kept only in this browser's localStorage (`sellscout.location.v1`) and
   prefilled next time. Clearing the site data removes it.
 - Saved searches (the item, location, delivery, window and the ids of the posts you have seen)
@@ -357,4 +427,6 @@ sellscout is being built in steps, each its own pull request:
 3. **Similar listings on eBay.** Active listings and a typical asking-price range (optional free
    eBay developer key) (done).
 4. **Smarter matching with Claude.** With your own `ANTHROPIC_API_KEY`, Claude picks boards and
-   the search term. Without a key, the built-in catalog still works (done, this version).
+   the search term. Without a key, the built-in catalog still works (done).
+5. **Desktop app and Settings.** A Windows desktop app with an installer and a Start-menu
+   entry, and a Settings screen for the keys, saved in your user profile (done, this version).

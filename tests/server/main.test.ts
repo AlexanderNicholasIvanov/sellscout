@@ -2,11 +2,22 @@ import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import type { AddressInfo, Server as NetServer } from 'node:net';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DOTENV_PATH, FIXTURE_MODE_MESSAGE, loadDotEnv, parsePort, prepareConfig, startServer } from '../../server/main.ts';
+import {
+  DOTENV_PATH,
+  FIXTURE_MODE_MESSAGE,
+  loadDotEnv,
+  parsePort,
+  prepareConfig,
+  prepareEnv,
+  settingsFileMessage,
+  startServer,
+  startSettingsFile,
+} from '../../server/main.ts';
 import { readConfig } from '../../server/config.ts';
 import { FIXTURE_POSTS } from '../../server/reddit/fixtures/posts.ts';
 import type { SearchResult } from '../../server/types.ts';
@@ -417,6 +428,49 @@ describe('node server/main.ts', () => {
     expect(proc.stderr()).not.toContain('SENTINEL');
   }, 20_000);
 
+  it('with SELLSCOUT_SETTINGS_FILE: prints the file, saves to it, and the status follows without a restart (run 5 AC8)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sellscout-main-'));
+    cleanups.push(async () => rmSync(dir, { recursive: true, force: true }));
+    const file = join(dir, 'nested', 'settings.json');
+    const port = await freePort();
+    const proc = spawnMain(String(port), { SELLSCOUT_SETTINGS_FILE: file });
+    await waitFor(() => proc.stdout().includes(`127.0.0.1:${port}`) || proc.child.exitCode !== null, 15_000);
+    expect(proc.stdout().trim().split(/\r?\n/)).toEqual([`sellscout: settings file ${file}`, `sellscout running at http://127.0.0.1:${port}`]);
+
+    const before = await (await fetch(`http://127.0.0.1:${port}/api/settings`)).json();
+    expect(before).toMatchObject({ editable: true, file });
+    const put = await fetch(`http://127.0.0.1:${port}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Origin: `http://127.0.0.1:${port}` },
+      body: JSON.stringify({ values: { ANTHROPIC_API_KEY: 'SENTINEL-SETTINGS-KEY' } }),
+    });
+    const text = await put.text();
+    expect(put.status).toBe(200);
+    expect(text).not.toContain('SENTINEL');
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ version: 1, values: { ANTHROPIC_API_KEY: 'SENTINEL-SETTINGS-KEY' } });
+    const status = await (await fetch(`http://127.0.0.1:${port}/api/status`)).json();
+    expect(status).toMatchObject({ claude: true, fixtures: false });
+    expect(proc.stdout() + proc.stderr()).not.toContain('SENTINEL');
+  }, 20_000);
+
+  it.each([
+    ['NODE_ENV=test', {}],
+    ['fixture mode', { NODE_ENV: 'production', SELLSCOUT_FIXTURES: '1' }],
+  ])('with %s and no SELLSCOUT_SETTINGS_FILE: no settings line, read-only, the real file untouched (run 5 AC8)', async (_name, extra) => {
+    const port = await freePort();
+    const proc = spawnMain(String(port), extra);
+    await waitFor(() => proc.stdout().includes(`127.0.0.1:${port}`) || proc.child.exitCode !== null, 15_000);
+    expect(proc.stdout()).not.toContain('sellscout: settings file');
+    const body = await (await fetch(`http://127.0.0.1:${port}/api/settings`)).json();
+    expect(body).toMatchObject({ editable: false, file: null });
+    const put = await fetch(`http://127.0.0.1:${port}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: { REDDIT_USERNAME: 'me' } }),
+    });
+    expect(put.status).toBe(409);
+  }, 20_000);
+
   it('rejects a bad PORT and exits 1', async () => {
     const proc = spawnMain('not-a-port');
     expect(await proc.exit).toBe(1);
@@ -462,6 +516,42 @@ describe('loadDotEnv (AC17)', () => {
 
   it('points at <repo root>/.env', () => {
     expect(DOTENV_PATH).toBe(join(repoRoot, '.env'));
+  });
+});
+
+describe('prepareEnv and the settings file (run 5 AC8)', () => {
+  const deps = (env: Record<string, string | undefined>, dotenv: Record<string, string> | null, calls: string[] = []) => ({
+    env,
+    path: '/repo/.env',
+    exists: () => dotenv !== null,
+    load: () => {
+      calls.push('load');
+      Object.assign(env, dotenv);
+    },
+    installGuard: () => calls.push('guard'),
+    log: (message: string) => calls.push(`log:${message}`),
+  });
+
+  it('returns the environment after .env, with fixture mode forced to the real value', () => {
+    const env = prepareEnv(deps({}, { SELLSCOUT_FIXTURES: '1', SELLSCOUT_SETTINGS_FILE: '/from/dotenv.json', REDDIT_USERNAME: 'me' }));
+    expect(env).toMatchObject({ SELLSCOUT_FIXTURES: '', SELLSCOUT_SETTINGS_FILE: '/from/dotenv.json', REDDIT_USERNAME: 'me' });
+    const calls: string[] = [];
+    expect(prepareEnv(deps({ SELLSCOUT_FIXTURES: '1' }, {}, calls)).SELLSCOUT_FIXTURES).toBe('1');
+    expect(calls).toEqual(['guard', `log:${FIXTURE_MODE_MESSAGE}`]);
+  });
+
+  it('SELLSCOUT_SETTINGS_FILE from .env is the file, absolute', () => {
+    const env = prepareEnv(deps({}, { SELLSCOUT_SETTINGS_FILE: 'rel/settings.json' }));
+    expect(startSettingsFile(env)).toBe(resolve('rel/settings.json'));
+  });
+
+  it('never resolves the real file under NODE_ENV=test or in fixture mode', () => {
+    expect(startSettingsFile({ NODE_ENV: 'test', APPDATA: '/a', XDG_CONFIG_HOME: '/x' })).toBeNull();
+    expect(startSettingsFile(prepareEnv(deps({ SELLSCOUT_FIXTURES: '1', NODE_ENV: 'production' }, null)))).toBeNull();
+  });
+
+  it('the start line names the file', () => {
+    expect(settingsFileMessage('/tmp/s.json')).toBe('sellscout: settings file /tmp/s.json');
   });
 });
 

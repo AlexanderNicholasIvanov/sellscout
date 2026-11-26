@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- sellscout: a magnifier over a price tag. Original mark; scripts/make-icon.mjs renders icon.png from it. -->
+  <rect width="512" height="512" rx="112" fill="#1f5fbf"/>
+  <g transform="rotate(-35 232 232)">
+    <path d="M70 232 L140 152 H360 Q384 152 384 176 V288 Q384 312 360 312 H140 Z" fill="#ffd166"/>
+    <circle cx="140" cy="232" r="20" fill="#1f5fbf"/>
+    <rect x="196" y="204" width="140" height="18" rx="9" fill="#c98a00"/>
+    <rect x="196" y="242" width="96" height="18" rx="9" fill="#c98a00"/>
+  </g>
+  <circle cx="320" cy="316" r="84" fill="#ffffff" fill-opacity="0.28" stroke="#ffffff" stroke-width="28"/>
+  <path d="M382 378 L446 442" stroke="#ffffff" stroke-width="40" stroke-linecap="round"/>
+</svg>

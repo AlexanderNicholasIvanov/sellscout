@@ -2,7 +2,15 @@
 // guard that aborts every request not addressed to the local Playwright server (AC28).
 import { readFileSync } from 'node:fs';
 import type { Page, Request, Route } from '@playwright/test';
-import type { BuyersResult, EbayResult, SearchInput, SearchResult, StatusResponse } from '../../server/types.ts';
+import type {
+  BuyersResult,
+  EbayResult,
+  SearchInput,
+  SearchResult,
+  SettingsResponse,
+  SettingsUpdate,
+  StatusResponse,
+} from '../../server/types.ts';
 
 export const LOCAL_HOST = '127.0.0.1:5181';
 
@@ -185,4 +193,26 @@ export async function seedStorage(page: Page, key: string, value: string): Promi
 /** Reads a raw localStorage value from the page. */
 export function readStorage(page: Page, key: string): Promise<string | null> {
   return page.evaluate((k) => window.localStorage.getItem(k), key);
+}
+
+export interface SettingsCalls {
+  /** How many GET /api/settings requests arrived. */
+  gets: number;
+  /** The body of every PUT /api/settings, in order. */
+  puts: SettingsUpdate[];
+}
+
+/**
+ * Intercepts /api/settings. Every PUT body is recorded. A response object answers every GET
+ * with itself and every PUT with itself too; a handler decides each answer.
+ */
+export async function mockSettings(page: Page, respond: SettingsResponse | Responder): Promise<SettingsCalls> {
+  const calls: SettingsCalls = { gets: 0, puts: [] };
+  await page.route('**/api/settings', async (route, request) => {
+    if (request.method() === 'PUT') calls.puts.push(request.postDataJSON() as SettingsUpdate);
+    else calls.gets += 1;
+    if (typeof respond === 'function') await respond(route, request);
+    else await route.fulfill({ status: 200, json: respond });
+  });
+  return calls;
 }

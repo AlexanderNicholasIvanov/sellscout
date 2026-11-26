@@ -145,7 +145,7 @@ test.describe('similar listings on eBay (AC12)', () => {
     const ebay = ebaySection(page);
     await expect(ebay.locator('.ebay-searched')).toHaveText(SEARCHED);
     await expect(ebay.locator('.ebay-message')).toHaveText(
-      "Add eBay app keys to see similar listings and asking prices. See the README's eBay section.",
+      "Add eBay app keys in Settings to see similar listings and asking prices. See the README's eBay section.",
     );
     const readme = ebay.getByRole('link', { name: "README's eBay section" });
     await expect(readme).toHaveAttribute('href', README_EBAY);
