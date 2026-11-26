@@ -1,4 +1,15 @@
-import type { BuyerWindow, Delivery, ErrorResponse, SearchInput, SearchResult } from '../server/types.ts';
+import type {
+  BuyersResult,
+  BuyerWindow,
+  Delivery,
+  ErrorResponse,
+  SearchInput,
+  SearchResult,
+  StatusResponse,
+} from '../server/types.ts';
+
+export const BUYER_WINDOWS: readonly BuyerWindow[] = [7, 30, 90];
+export const DEFAULT_BUYER_WINDOW: BuyerWindow = 30;
 
 export class SearchError extends Error {}
 
@@ -11,6 +22,18 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
   );
 }
 
+function isBuyersResult(value: unknown): value is BuyersResult {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Partial<BuyersResult>;
+  return (
+    typeof v.status === 'string' &&
+    Array.isArray(v.posts) &&
+    Array.isArray(v.links) &&
+    typeof v.term === 'string' &&
+    typeof v.windowDays === 'number'
+  );
+}
+
 function isSearchResult(value: unknown): value is SearchResult {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Partial<SearchResult>;
@@ -20,8 +43,7 @@ function isSearchResult(value: unknown): value is SearchResult {
     Array.isArray(v.plan.categories) &&
     typeof v.plan.searchTerm === 'string' &&
     Array.isArray(v.venues) &&
-    typeof v.buyers === 'object' &&
-    v.buyers !== null &&
+    isBuyersResult(v.buyers) &&
     Array.isArray(v.notices)
   );
 }
@@ -31,7 +53,7 @@ export function buildSearchInput(
   item: string,
   location: string,
   delivery: Delivery,
-  window: BuyerWindow = 30,
+  window: BuyerWindow = DEFAULT_BUYER_WINDOW,
 ): SearchInput {
   const input: SearchInput = { item: item.trim(), delivery, window };
   const loc = location.trim();
@@ -66,4 +88,22 @@ export async function search(input: SearchInput, signal?: AbortSignal): Promise<
   }
   if (!isSearchResult(body)) throw new SearchError('Unexpected response from server');
   return body;
+}
+
+function isStatusResponse(value: unknown): value is StatusResponse {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Partial<StatusResponse>;
+  return typeof v.version === 'string' && typeof v.redditAuth === 'boolean' && typeof v.fixtures === 'boolean';
+}
+
+/** GETs /api/status. Resolves to null on any failure or a malformed body; never throws. */
+export async function status(signal?: AbortSignal): Promise<StatusResponse | null> {
+  try {
+    const res = await fetch('/api/status', { signal });
+    if (!res.ok) return null;
+    const body: unknown = await res.json();
+    return isStatusResponse(body) ? body : null;
+  } catch {
+    return null;
+  }
 }

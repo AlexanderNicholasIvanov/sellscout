@@ -1,0 +1,105 @@
+{
+  "plan": {
+    "source": "catalog",
+    "categories": [
+      {
+        "id": "keyboards",
+        "name": "Mechanical keyboards"
+      }
+    ],
+    "searchTerm": "mechanical keyboard"
+  },
+  "venues": [
+    {
+      "id": "r-mechmarket",
+      "name": "r/mechmarket",
+      "kind": "subreddit",
+      "url": "https://www.reddit.com/r/mechmarket/",
+      "searchUrl": "https://www.reddit.com/r/mechmarket/search/?q=mechanical%20keyboard&restrict_sr=1",
+      "ships": true,
+      "local": false,
+      "feeNote": "No platform fee; buyers usually pay with PayPal Goods & Services.",
+      "tips": [
+        "Title format: [US-XX] [H] what you have [W] PayPal",
+        "Include a timestamp photo with your username and the date"
+      ],
+      "why": [
+        "mechanical keyboard",
+        "keyboard"
+      ],
+      "categoryIds": [
+        "keyboards"
+      ]
+    }
+  ],
+  "buyers": {
+    "status": "ok",
+    "term": "mechanical keyboard",
+    "windowDays": 30,
+    "posts": [
+      {
+        "id": "t3_p1",
+        "title": "WTB a 65% mechanical keyboard",
+        "subreddit": "mechmarket",
+        "author": "keeb_buyer",
+        "createdUtc": 1795590000,
+        "score": 12,
+        "numComments": 3,
+        "snippet": "Looking for a hot-swap board, budget around $150.",
+        "url": "https://www.reddit.com/r/mechmarket/comments/p1/wtb_a_65_mechanical_keyboard/"
+      },
+      {
+        "id": "t3_p2",
+        "title": "ISO mechanical keyboard for a beginner",
+        "subreddit": "MechanicalKeyboards",
+        "author": "first_keeb",
+        "createdUtc": 1795607910,
+        "score": 1,
+        "numComments": 1,
+        "snippet": "",
+        "url": "https://www.reddit.com/r/MechanicalKeyboards/comments/p2/iso_mechanical_keyboard/"
+      },
+      {
+        "id": "t3_p3",
+        "title": "Looking for a mechanical keyboard (unsafe link)",
+        "subreddit": "mechmarket",
+        "author": "sneaky",
+        "createdUtc": 1795518000,
+        "score": 0,
+        "numComments": 0,
+        "snippet": "This post's url is not http(s).",
+        "url": "javascript:alert(1)"
+      },
+      {
+        "id": "t3_p4",
+        "title": "Wanted: mechanical keyboard, any layout",
+        "subreddit": "mechmarket",
+        "author": "old_keeb",
+        "createdUtc": 1795348800,
+        "score": 2,
+        "numComments": 5,
+        "snippet": "Anything with a full-size layout.",
+        "url": "https://www.reddit.com/r/mechmarket/comments/p4/wanted_mechanical_keyboard/"
+      }
+    ],
+    "links": [
+      {
+        "label": "Search Reddit for buyers",
+        "url": "https://www.reddit.com/search/?q=%28WTB%20OR%20ISO%20OR%20%22looking%20for%22%29%20mechanical%20keyboard&sort=new&t=month"
+      },
+      {
+        "label": "Search r/mechmarket",
+        "url": "https://www.reddit.com/r/mechmarket/search/?q=mechanical%20keyboard&restrict_sr=1&sort=new&t=month"
+      },
+      {
+        "label": "Craigslist 'wanted' (pick your city)",
+        "url": "https://www.craigslist.org/about/sites"
+      },
+      {
+        "label": "Unsafe look-yourself link",
+        "url": "javascript:alert(2)"
+      }
+    ]
+  },
+  "notices": []
+}

@@ -1,0 +1,56 @@
+{
+  "plan": {
+    "source": "catalog",
+    "categories": [
+      {
+        "id": "keyboards",
+        "name": "Mechanical keyboards"
+      }
+    ],
+    "searchTerm": "mechanical keyboard"
+  },
+  "venues": [
+    {
+      "id": "r-mechmarket",
+      "name": "r/mechmarket",
+      "kind": "subreddit",
+      "url": "https://www.reddit.com/r/mechmarket/",
+      "searchUrl": "https://www.reddit.com/r/mechmarket/search/?q=mechanical%20keyboard&restrict_sr=1",
+      "ships": true,
+      "local": false,
+      "feeNote": "No platform fee; buyers usually pay with PayPal Goods & Services.",
+      "tips": [
+        "Title format: [US-XX] [H] what you have [W] PayPal",
+        "Include a timestamp photo with your username and the date"
+      ],
+      "why": [
+        "mechanical keyboard",
+        "keyboard"
+      ],
+      "categoryIds": [
+        "keyboards"
+      ]
+    }
+  ],
+  "buyers": {
+    "status": "ok",
+    "term": "mechanical keyboard",
+    "windowDays": 7,
+    "posts": [],
+    "links": [
+      {
+        "label": "Search Reddit for buyers",
+        "url": "https://www.reddit.com/search/?q=%28WTB%20OR%20ISO%20OR%20%22looking%20for%22%29%20mechanical%20keyboard&sort=new&t=week"
+      },
+      {
+        "label": "Search r/mechmarket",
+        "url": "https://www.reddit.com/r/mechmarket/search/?q=mechanical%20keyboard&restrict_sr=1&sort=new&t=week"
+      },
+      {
+        "label": "Craigslist 'wanted' (pick your city)",
+        "url": "https://www.craigslist.org/about/sites"
+      }
+    ]
+  },
+  "notices": []
+}
