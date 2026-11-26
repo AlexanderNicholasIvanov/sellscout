@@ -93,7 +93,7 @@ describe('startServer (AC3)', () => {
     expect(address.port).toBeGreaterThan(0);
     const res = await rawRequest(address.port, { path: '/api/status' });
     expect(res.status).toBe(200);
-    expect(JSON.parse(res.body)).toEqual({ version: '1.2.3', redditAuth: false, fixtures: false, ebay: false });
+    expect(JSON.parse(res.body)).toEqual({ version: '1.2.3', redditAuth: false, fixtures: false, ebay: false, claude: false });
   });
 
   it('reports ebay: true with eBay keys and fixtures off, and sends nothing at start-up (run 3 AC3)', async () => {
@@ -103,7 +103,7 @@ describe('startServer (AC3)', () => {
     cleanups.push(() => closeServer(server));
     const { port } = server.address() as AddressInfo;
     const res = await rawRequest(port, { path: '/api/status' });
-    expect(json(res)).toEqual({ version: '1.2.3', redditAuth: false, fixtures: false, ebay: true });
+    expect(json(res)).toEqual({ version: '1.2.3', redditAuth: false, fixtures: false, ebay: true, claude: false });
     expect(res.body).not.toContain('SENTINEL');
     expect(fetchSpy.mock.calls.map((call) => String(call[0])).filter((url) => !url.startsWith('http://127.0.0.1'))).toEqual([]);
     fetchSpy.mockRestore();
@@ -123,7 +123,7 @@ describe('startServer in fixture mode: eBay (run 3 AC3, AC11)', () => {
     const server = await startServer({ port: 0, version: '1.2.3', config });
     cleanups.push(() => closeServer(server));
     const { port } = server.address() as AddressInfo;
-    expect(json(await rawRequest(port, { path: '/api/status' }))).toEqual({ version: '1.2.3', redditAuth: false, fixtures: true, ebay: false });
+    expect(json(await rawRequest(port, { path: '/api/status' }))).toEqual({ version: '1.2.3', redditAuth: false, fixtures: true, ebay: false, claude: false });
 
     const res = await postSearch(port, { item: 'mechanical keyboard', delivery: 'both', window: 30 });
     expect(res.status).toBe(200);
@@ -245,7 +245,7 @@ describe('node server/main.ts', () => {
     expect(proc.stdout().trim()).toBe(`sellscout running at http://127.0.0.1:${port}`);
     const res = await fetch(`http://127.0.0.1:${port}/api/status`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: false, ebay: false });
+    expect(await res.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: false, ebay: false, claude: false });
   }, 20_000);
 
   it('prints the port-in-use message and exits 1 (AC4)', async () => {
@@ -274,7 +274,7 @@ describe('node server/main.ts', () => {
     ]);
     expect(FIXTURE_MODE_MESSAGE).toBe('sellscout: fixture mode (canned Reddit data, outbound requests blocked)');
     const status = await fetch(`http://127.0.0.1:${port}/api/status`);
-    expect(await status.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: true, ebay: false });
+    expect(await status.json()).toEqual({ version: pkg.version, redditAuth: false, fixtures: true, ebay: false, claude: false });
     const res = await fetch(`http://127.0.0.1:${port}/api/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
