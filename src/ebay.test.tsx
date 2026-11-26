@@ -34,15 +34,22 @@ describe('eBay format helpers', () => {
     expect(statusChips({ redditAuth: false, fixtures: false, ebay: true })).toEqual([
       'Reddit: off (no keys)',
       'eBay: on',
+      'Claude: off (no key)',
     ]);
-    expect(statusChips({ redditAuth: true, fixtures: false, ebay: true })).toEqual(['Reddit: on', 'eBay: on']);
+    expect(statusChips({ redditAuth: true, fixtures: false, ebay: true })).toEqual([
+      'Reddit: on',
+      'eBay: on',
+      'Claude: off (no key)',
+    ]);
     expect(statusChips({ redditAuth: false, fixtures: false, ebay: false })).toEqual([
       'Reddit: off (no keys)',
       'eBay: off (no keys)',
+      'Claude: off (no key)',
     ]);
     expect(statusChips({ redditAuth: false, fixtures: true, ebay: false })).toEqual([
       'Reddit: fixture',
       'eBay: fixture',
+      'Claude: fixture',
       'Fixture data',
     ]);
   });

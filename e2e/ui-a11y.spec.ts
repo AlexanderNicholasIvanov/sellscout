@@ -241,3 +241,34 @@ test.describe('accessibility: saved searches', () => {
     await expect(page.getByLabel('What are you selling?')).toBeFocused();
   });
 });
+
+test.describe('accessibility: Claude picks', () => {
+  test('AC14: keyboard only - search and Tab to the AI-suggested board link', async ({ page }) => {
+    const { calls } = await mockSearch(page, 'claude-keyboard');
+    await page.goto('/');
+
+    await page.keyboard.press('Tab');
+    await expect(page.getByLabel('What are you selling?')).toBeFocused();
+    await page.keyboard.type('mechanical keyboard');
+    await page.keyboard.press('Enter');
+    await expect(page.getByText('Understood as: Mechanical keyboards · via Claude')).toBeVisible();
+    expect(calls).toHaveLength(1);
+
+    // Tab on through the form and the venues until the AI-suggested venue's link has focus.
+    const focusedInAiVenue = () =>
+      page.evaluate(() => {
+        const el = document.activeElement;
+        return el instanceof HTMLAnchorElement && el.closest('li.venue')?.querySelector('.badge-ai') != null;
+      });
+    let reached = false;
+    for (let i = 0; i < 30 && !reached; i++) {
+      await page.keyboard.press('Tab');
+      reached = await focusedInAiVenue();
+    }
+    expect(reached).toBe(true);
+    const link = page.locator('ol.venues a:focus');
+    await expect(link).toHaveText('Open board');
+    await expect(link).toHaveAttribute('href', 'https://www.reddit.com/r/MechanicalKeyboards/');
+    expect(await link.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+  });
+});

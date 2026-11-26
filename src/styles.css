@@ -523,6 +523,12 @@ select {
   font-weight: 600;
 }
 
+.venue .badge-ai {
+  font-weight: 600;
+  color: var(--accent-text);
+  background: var(--accent);
+}
+
 .post .badge-new {
   display: inline-block;
   margin-right: 0.5rem;

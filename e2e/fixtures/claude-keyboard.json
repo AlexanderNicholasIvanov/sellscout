@@ -1,0 +1,142 @@
+{
+  "plan": {
+    "source": "claude",
+    "categories": [
+      {
+        "id": "keyboards",
+        "name": "Mechanical keyboards"
+      }
+    ],
+    "searchTerm": "mechanical keyboard"
+  },
+  "venues": [
+    {
+      "id": "r-mechmarket",
+      "name": "r/mechmarket",
+      "kind": "subreddit",
+      "url": "https://www.reddit.com/r/mechmarket/",
+      "searchUrl": "https://www.reddit.com/r/mechmarket/search/?q=mechanical%20keyboard&restrict_sr=1",
+      "ships": true,
+      "local": false,
+      "feeNote": "No platform fee; buyers usually pay with PayPal Goods & Services.",
+      "tips": [
+        "Title format: [US-XX] [H] what you have [W] PayPal",
+        "Include a timestamp photo with your username and the date"
+      ],
+      "why": [
+        "mechanical keyboard",
+        "keyboard"
+      ],
+      "categoryIds": [
+        "keyboards"
+      ]
+    },
+    {
+      "id": "geekhack",
+      "name": "geekhack Classifieds",
+      "kind": "forum",
+      "url": "https://geekhack.org/index.php?board=66.0",
+      "ships": true,
+      "local": false,
+      "tips": [
+        "List the switches, keycaps and layout in the first line"
+      ],
+      "why": [
+        "keyboard"
+      ],
+      "categoryIds": [
+        "keyboards"
+      ]
+    },
+    {
+      "id": "ai-r-mechanicalkeyboards",
+      "name": "r/MechanicalKeyboards",
+      "kind": "subreddit",
+      "url": "https://www.reddit.com/r/MechanicalKeyboards/",
+      "ships": true,
+      "local": true,
+      "tips": [],
+      "why": [
+        "Suggested by Claude"
+      ],
+      "categoryIds": [],
+      "aiSuggested": true
+    },
+    {
+      "id": "ebay",
+      "name": "eBay",
+      "kind": "marketplace",
+      "url": "https://www.ebay.com/sl/sell",
+      "searchUrl": "https://www.ebay.com/sch/i.html?_nkw=mechanical%20keyboard",
+      "ships": true,
+      "local": true,
+      "feeNote": "Final value fee of roughly 13% for most categories.",
+      "tips": [
+        "Check sold listings to price it",
+        "Photograph every angle"
+      ],
+      "why": [
+        "Sells almost anything"
+      ],
+      "categoryIds": []
+    },
+    {
+      "id": "facebook-marketplace",
+      "name": "Facebook Marketplace",
+      "kind": "facebook",
+      "url": "https://www.facebook.com/marketplace/",
+      "searchUrl": "https://www.facebook.com/marketplace/search/?query=mechanical%20keyboard",
+      "ships": true,
+      "local": true,
+      "tips": [
+        "Meet in a public place for local sales"
+      ],
+      "why": [
+        "Sells almost anything"
+      ],
+      "categoryIds": []
+    },
+    {
+      "id": "craigslist",
+      "name": "Craigslist",
+      "kind": "local-classifieds",
+      "url": "https://www.craigslist.org/about/sites",
+      "ships": false,
+      "local": true,
+      "tips": [
+        "Never accept overpayment or shipping-only buyers"
+      ],
+      "why": [
+        "Sells almost anything"
+      ],
+      "categoryIds": []
+    }
+  ],
+  "buyers": {
+    "status": "disabled",
+    "term": "mechanical keyboard",
+    "windowDays": 30,
+    "posts": [],
+    "links": [
+      {
+        "label": "Search Reddit for buyers",
+        "url": "https://www.reddit.com/search/?q=%28WTB%20OR%20ISO%20OR%20%22looking%20for%22%29%20mechanical%20keyboard&sort=new&t=month"
+      },
+      {
+        "label": "Search r/mechmarket",
+        "url": "https://www.reddit.com/r/mechmarket/search/?q=mechanical%20keyboard&restrict_sr=1&sort=new&t=month"
+      },
+      {
+        "label": "Craigslist 'wanted' (pick your city)",
+        "url": "https://www.craigslist.org/about/sites"
+      }
+    ]
+  },
+  "ebay": {
+    "status": "disabled",
+    "term": "mechanical keyboard",
+    "listings": [],
+    "searchUrl": "https://www.ebay.com/sch/i.html?_nkw=mechanical%20keyboard"
+  },
+  "notices": []
+}

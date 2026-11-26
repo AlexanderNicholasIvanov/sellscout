@@ -97,3 +97,65 @@ describe('README (run 3, AC15)', () => {
     expect(section('Roadmap')).toMatch(/3\. \*\*Similar listings on eBay\.\*\*[^]*?\(done/);
   });
 });
+
+describe('README (run 4, AC15)', () => {
+  const section = (name: string) =>
+    readme.split(/^## /m).find((s) => s.startsWith(`${name}\n`) || s.startsWith(`${name}\r\n`)) ?? '';
+
+  it.each(['ANTHROPIC_API_KEY', 'SELLSCOUT_CLAUDE_MODEL', 'claude-opus-5-5', 'never the location'])('mentions %s', (phrase) => {
+    expect(readme).toContain(phrase);
+  });
+
+  it('has a "Claude (optional)" section after "eBay" and before "Privacy"', () => {
+    expect(headings).toContain('Claude (optional)');
+    expect(headings.indexOf('Claude (optional)')).toBeGreaterThan(headings.indexOf('eBay'));
+    expect(headings.indexOf('Claude (optional)')).toBeLessThan(headings.indexOf('Privacy'));
+  });
+
+  it('the Claude section covers the key, the model, cost and the fallback', () => {
+    const claude = section('Claude (optional)');
+    for (const phrase of [
+      'console.anthropic.com',
+      'ANTHROPIC_API_KEY=',
+      'SELLSCOUT_CLAUDE_MODEL',
+      'claude-opus-5-5',
+      'structured outputs',
+      '`effort`',
+      'One request per search, billed to your key',
+      'low effort',
+      'used the built-in catalog.',
+      'AI suggested',
+    ]) {
+      expect(claude).toContain(phrase);
+    }
+  });
+
+  it('keeps Claude in the Privacy section, never with the location', () => {
+    const privacy = section('Privacy');
+    expect(privacy).toContain("Claude receives the item text and the catalog's category list");
+    expect(privacy).toContain('never the location, saved searches or any key');
+  });
+
+  it('lists the Claude fixture terms under Fixture mode', () => {
+    const fixtureMode = readme.split(/^#{2,3} /m).find((s) => s.startsWith('Fixture mode')) ?? '';
+    for (const term of [
+      'claude-timeout',
+      'claude-offline',
+      'claude-401',
+      'claude-429',
+      'claude-500',
+      'claude-refusal',
+      'claude-max-tokens',
+      'claude-invalid',
+      'Claude: fixture',
+      'via Claude',
+      'r/MechanicalKeyboards',
+    ]) {
+      expect(fixtureMode).toContain(term);
+    }
+  });
+
+  it('marks 4 done on the Roadmap', () => {
+    expect(section('Roadmap')).toMatch(/4\. \*\*Smarter matching with Claude\.\*\*[^]*?\(done/);
+  });
+});

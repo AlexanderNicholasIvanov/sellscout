@@ -8,11 +8,11 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
 
-test('live: mechanical keyboard lists r/mechmarket with why, tips and links', async ({ page }) => {
+test('live: mechanical keyboard lists r/mechmarket with why, tips and links @needs-claude-planner', async ({ page }) => {
   await page.getByLabel('What are you selling?').fill('mechanical keyboard');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
 
-  await expect(page.getByText(/^Understood as: .*· via built-in catalog$/)).toBeVisible();
+  await expect(page.getByText(/^Understood as: .*· via Claude$/)).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: 'Where to post it' })).toBeVisible();
 
   const row = page.getByRole('listitem').filter({ hasText: 'r/mechmarket' }).first();
@@ -28,13 +28,13 @@ test('live: mechanical keyboard lists r/mechmarket with why, tips and links', as
   );
 });
 
-test('live: an unmatched item shows the no-match notice and general venues only', async ({ page }) => {
+test('live: an unmatched item shows the no-match notice and general venues only @needs-claude-planner', async ({ page }) => {
   await page.getByLabel('What are you selling?').fill('asdfgh');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(
     page.getByText('No specialist boards matched "asdfgh". Try more specific words (brand, model, type).'),
   ).toBeVisible();
-  await expect(page.getByText('Understood as: general item · via built-in catalog')).toBeVisible();
+  await expect(page.getByText('Understood as: general item · via Claude')).toBeVisible();
 });
 
 test('live: an unknown location shows the location notice; Seattle gets its Craigslist', async ({ page }) => {
