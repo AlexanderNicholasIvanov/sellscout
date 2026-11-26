@@ -21,7 +21,7 @@ test.describe('location memory', () => {
     await expect(page.getByLabel('Location (optional)')).toHaveValue('');
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
     await page.getByLabel('Location (optional)').fill('Seattle');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Where to post it' })).toBeVisible();
 
     await page.reload();
@@ -30,7 +30,7 @@ test.describe('location memory', () => {
     // A later search with a blank location keeps the last non-blank one.
     await page.getByLabel('Location (optional)').fill('');
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Where to post it' })).toBeVisible();
     await page.reload();
     await expect(page.getByLabel('Location (optional)')).toHaveValue('Seattle');
@@ -78,7 +78,7 @@ test.describe('location memory', () => {
     await expect(page.getByLabel('Location (optional)')).toHaveValue('');
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
     await page.getByLabel('Location (optional)').fill('Seattle');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Where to post it' })).toBeVisible();
     expect(calls).toHaveLength(1);
     expect(errors).toEqual([]);

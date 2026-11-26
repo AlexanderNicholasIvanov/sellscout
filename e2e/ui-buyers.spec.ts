@@ -14,7 +14,7 @@ async function searchFor(page: Page, fixture: FixtureName, item = 'mechanical ke
   await page.clock.setFixedTime(NOW);
   await page.goto('/');
   await page.getByLabel('What are you selling?').fill(item);
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'People looking for it' })).toBeVisible();
   return mocked;
 }
@@ -144,7 +144,7 @@ test.describe('people looking for it', () => {
     await mockSearch(page, (route) => route.fulfill({ status: 200, json: fixture }));
     await page.goto('/');
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
 
     const buyers = buyersSection(page);
     await expect(buyers.getByRole('heading', { level: 3, name: 'Look yourself' })).toBeVisible();
@@ -171,17 +171,17 @@ test.describe('buyer window', () => {
     await expect(select.locator('option')).toHaveText(['7 days', '30 days', '90 days']);
 
     await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'People looking for it' })).toBeVisible();
     expect(calls[0].body.window).toBe(30);
 
     await select.selectOption({ label: '7 days' });
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect.poll(() => calls.length).toBe(2);
     expect(calls[1].body).toEqual({ item: 'mechanical keyboard', delivery: 'both', window: 7 });
 
     await select.selectOption({ label: '90 days' });
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
     await expect.poll(() => calls.length).toBe(3);
     expect(calls[2].body.window).toBe(90);
   });
@@ -228,7 +228,7 @@ test.describe('header status chips', () => {
 
       await expect.poll(() => statusCalls).toBeGreaterThan(0);
       await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-      await page.getByRole('button', { name: 'Search' }).click();
+      await page.getByRole('button', { name: 'Search', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'People looking for it' })).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Where to post it' })).toBeVisible();
       await expect(page.locator('header .chips')).toHaveCount(0);

@@ -128,3 +128,24 @@ export async function mockStatus(page: Page, respond: Omit<StatusResponse, 'vers
       : route.fulfill({ status: 200, json: { version: '0.1.0', ...respond } }),
   );
 }
+
+/**
+ * Puts `value` (a raw string) into localStorage under `key` before the app's first load. A
+ * sessionStorage flag keeps a later reload from writing it again.
+ */
+export async function seedStorage(page: Page, key: string, value: string): Promise<void> {
+  await page.addInitScript(
+    ([k, v]) => {
+      const flag = `__seeded:${k}`;
+      if (window.sessionStorage.getItem(flag) !== null) return;
+      window.localStorage.setItem(k, v);
+      window.sessionStorage.setItem(flag, '1');
+    },
+    [key, value],
+  );
+}
+
+/** Reads a raw localStorage value from the page. */
+export function readStorage(page: Page, key: string): Promise<string | null> {
+  return page.evaluate((k) => window.localStorage.getItem(k), key);
+}

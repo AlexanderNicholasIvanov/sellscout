@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 
 test('live: mechanical keyboard lists r/mechmarket with why, tips and links', async ({ page }) => {
   await page.getByLabel('What are you selling?').fill('mechanical keyboard');
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
 
   await expect(page.getByText(/^Understood as: .*· via built-in catalog$/)).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: 'Where to post it' })).toBeVisible();
@@ -30,7 +30,7 @@ test('live: mechanical keyboard lists r/mechmarket with why, tips and links', as
 
 test('live: an unmatched item shows the no-match notice and general venues only', async ({ page }) => {
   await page.getByLabel('What are you selling?').fill('asdfgh');
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(
     page.getByText('No specialist boards matched "asdfgh". Try more specific words (brand, model, type).'),
   ).toBeVisible();
@@ -40,11 +40,11 @@ test('live: an unmatched item shows the no-match notice and general venues only'
 test('live: an unknown location shows the location notice; Seattle gets its Craigslist', async ({ page }) => {
   await page.getByLabel('What are you selling?').fill('desk');
   await page.getByLabel('Location (optional)').fill('Nowhereville');
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.getByText('Couldn\'t match "Nowhereville" to a city; local links are generic.')).toBeVisible();
 
   await page.getByLabel('Location (optional)').fill('Seattle');
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   const craigslist = page.getByRole('listitem').filter({ hasText: 'Craigslist' }).first();
   await expect(craigslist.getByRole('link', { name: 'Open board' })).toHaveAttribute(
     'href',
