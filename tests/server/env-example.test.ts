@@ -59,6 +59,8 @@ describe('.env.example (AC25)', () => {
     }
     expect(seen.has('PORT')).toBe(true);
     expect(seen.has('REDDIT_CLIENT_ID')).toBe(true);
+    expect(seen.has('EBAY_CLIENT_ID')).toBe(true);
+    expect(seen.has('EBAY_CLIENT_SECRET')).toBe(true);
     expect(missing).toEqual([]);
   });
 
@@ -80,6 +82,8 @@ describe('.env.example (AC25)', () => {
         'REDDIT_CLIENT_ID',
         'REDDIT_CLIENT_SECRET',
         'REDDIT_USERNAME',
+        'EBAY_CLIENT_ID',
+        'EBAY_CLIENT_SECRET',
       ]),
     );
     const documented = documentedVars();
@@ -92,5 +96,13 @@ describe('.env.example (AC25)', () => {
     for (const name of ['PORT', 'REDDIT_CLIENT_ID', 'REDDIT_CLIENT_SECRET', 'REDDIT_USERNAME', 'SELLSCOUT_FIXTURES', 'SELLSCOUT_FIXTURE_DELAY_MS']) {
       expect(text.split(/\r?\n/)).toContain(`${name}=`);
     }
+  });
+
+  it('lists both eBay keys with empty values under a one-line comment (run 3 AC2)', () => {
+    const lines = readFileSync(join(repoRoot, '.env.example'), 'utf8').split(/\r?\n/);
+    const id = lines.indexOf('EBAY_CLIENT_ID=');
+    expect(id).toBeGreaterThan(0);
+    expect(lines[id + 1]).toBe('EBAY_CLIENT_SECRET=');
+    expect(lines[id - 1]).toMatch(/^# .*eBay/);
   });
 });

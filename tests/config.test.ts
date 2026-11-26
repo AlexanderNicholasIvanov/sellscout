@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasRedditKeys, parsePort, readConfig } from '../server/config.ts';
+import { hasEbayKeys, hasRedditKeys, parsePort, readConfig } from '../server/config.ts';
 import { parsePort as parsePortFromMain } from '../server/main.ts';
 
 const ID = 'SENTINEL-ID-456';
@@ -12,6 +12,7 @@ describe('readConfig (AC3)', () => {
       fixtures: false,
       fixtureDelayMs: 0,
       reddit: { clientId: '', clientSecret: '', username: '' },
+      ebay: { clientId: '', clientSecret: '' },
     });
   });
 
@@ -100,5 +101,53 @@ describe('hasRedditKeys (AC3)', () => {
   it('is false for an injected fixture config even if it carries keys', () => {
     const config = { ...readConfig({}), fixtures: true, reddit: { clientId: ID, clientSecret: SECRET, username: '' } };
     expect(hasRedditKeys(config)).toBe(false);
+  });
+});
+
+const EBAY_ID = 'SENTINEL-EBAY-ID';
+const EBAY_SECRET = 'SENTINEL-EBAY-SECRET';
+
+describe('eBay keys in readConfig (run 3 AC2)', () => {
+  it('reads and trims EBAY_CLIENT_ID and EBAY_CLIENT_SECRET', () => {
+    const config = readConfig({ EBAY_CLIENT_ID: `  ${EBAY_ID} `, EBAY_CLIENT_SECRET: `\t${EBAY_SECRET}\n` });
+    expect(config.ebay).toEqual({ clientId: EBAY_ID, clientSecret: EBAY_SECRET });
+  });
+
+  it("gives '' for unset eBay keys", () => {
+    expect(readConfig({ REDDIT_CLIENT_ID: ID }).ebay).toEqual({ clientId: '', clientSecret: '' });
+  });
+
+  it('keeps the eBay and Reddit keys apart', () => {
+    const config = readConfig({ EBAY_CLIENT_ID: EBAY_ID, REDDIT_CLIENT_ID: ID });
+    expect(config.ebay).toEqual({ clientId: EBAY_ID, clientSecret: '' });
+    expect(config.reddit.clientId).toBe(ID);
+  });
+
+  it('forces both eBay keys to empty in fixture mode', () => {
+    const config = readConfig({ SELLSCOUT_FIXTURES: '1', EBAY_CLIENT_ID: EBAY_ID, EBAY_CLIENT_SECRET: EBAY_SECRET });
+    expect(config.ebay).toEqual({ clientId: '', clientSecret: '' });
+    expect(JSON.stringify(config)).not.toContain('SENTINEL');
+  });
+});
+
+describe('hasEbayKeys (run 3 AC2)', () => {
+  it('is true with both keys and fixtures off', () => {
+    expect(hasEbayKeys(readConfig({ EBAY_CLIENT_ID: EBAY_ID, EBAY_CLIENT_SECRET: EBAY_SECRET }))).toBe(true);
+  });
+
+  it.each([
+    ['only the id', { EBAY_CLIENT_ID: EBAY_ID }],
+    ['only the secret', { EBAY_CLIENT_SECRET: EBAY_SECRET }],
+    ['no keys', {}],
+    ['blank keys', { EBAY_CLIENT_ID: '  ', EBAY_CLIENT_SECRET: ' ' }],
+    ['only the Reddit keys', { REDDIT_CLIENT_ID: ID, REDDIT_CLIENT_SECRET: SECRET }],
+    ['fixture mode with both keys', { SELLSCOUT_FIXTURES: '1', EBAY_CLIENT_ID: EBAY_ID, EBAY_CLIENT_SECRET: EBAY_SECRET }],
+  ])('is false with %s', (_label, env: Record<string, string>) => {
+    expect(hasEbayKeys(readConfig(env))).toBe(false);
+  });
+
+  it('is false for an injected fixture config even if it carries keys', () => {
+    const config = { ...readConfig({}), fixtures: true, ebay: { clientId: EBAY_ID, clientSecret: EBAY_SECRET } };
+    expect(hasEbayKeys(config)).toBe(false);
   });
 });
